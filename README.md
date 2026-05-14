@@ -51,21 +51,21 @@ node_memory_MemAvailable_bytes{job="node"}
 docker compose up --build
 ```
 
-Starts Home Assistant, Prometheus, and node-exporter. On first run the init
-container seeds `dev/ha-config/` from the committed template in `dev/ha-seed/`.
+Starts Home Assistant, Prometheus, and node-exporter.
 
-| Service       | URL                    |
-|---------------|------------------------|
-| Home Assistant | http://localhost:8123  |
-| Prometheus    | http://localhost:9090  |
+| Service        | URL                   |
+|----------------|-----------------------|
+| Home Assistant | http://localhost:8123 |
 
-**Credentials:** `dev` / `dev`
+On first run, complete the HA onboarding wizard in the browser (one-time).
+State persists in `dev/ha-config/` across restarts.
 
-**First sensor to add:** go to Settings → Devices & Services → PromQL →
-Add entry. Use `http://prometheus:9090` as the Prometheus URL (Docker
-internal hostname). Example queries are in `dev/example-queries.txt`.
+**Adding a sensor:** Settings → Devices & Services → PromQL → Add entry.
+Enter `http://prometheus:9090` as the Prometheus URL — this is the Docker
+Compose service hostname, not `localhost` (which would resolve to the HA
+container itself). Example queries are in `dev/example-queries.txt`.
 
-To reset HA state: `rm -rf dev/ha-config && mkdir dev/ha-config`
+To reset: `rm -rf dev/ha-config && mkdir dev/ha-config`
 
 For a standalone self-contained image (no Prometheus bundled):
 ```bash

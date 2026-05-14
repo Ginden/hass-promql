@@ -1,18 +1,6 @@
 services:
-  # One-shot init: seeds dev/ha-config/ from dev/ha-seed/ on first run.
-  init:
-    image: busybox
-    volumes:
-      - ./dev/ha-seed:/ha-seed:ro
-      - ./dev/ha-config:/ha-config
-      - ./scripts/init-ha.sh:/init-ha.sh:ro
-    command: sh /init-ha.sh
-
   homeassistant:
     build: .
-    depends_on:
-      init:
-        condition: service_completed_successfully
     volumes:
       - ./dev/ha-config:/config
       - ./custom_components:/config/custom_components:ro
@@ -26,8 +14,6 @@ services:
     image: prom/prometheus:latest
     volumes:
       - ./dev/prometheus:/etc/prometheus:ro
-    ports:
-      - "9090:9090"
     restart: unless-stopped
 
   node-exporter:

@@ -20,6 +20,9 @@
   },
   "config_subentries": {
     "sensor": {
+      "initiate_flow": {
+        "user": "Add PromQL sensor"
+      },
       "flow_title": "Add PromQL sensor",
       "step": {
         "user": {

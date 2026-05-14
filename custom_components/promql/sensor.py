@@ -7,7 +7,7 @@ from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import CONF_UNIT, DOMAIN
@@ -17,15 +17,16 @@ from .coordinator import PromQLCoordinator
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up PromQL sensors from config entry subentries."""
     coordinator: PromQLCoordinator = entry.runtime_data
-    async_add_entities(
-        PromQLSensor(coordinator, subentry)
-        for subentry in entry.subentries.values()
-        if subentry.subentry_type == "sensor"
-    )
+    for subentry in entry.subentries.values():
+        if subentry.subentry_type == "sensor":
+            async_add_entities(
+                [PromQLSensor(coordinator, subentry)],
+                config_subentry_id=subentry.subentry_id,
+            )
 
 
 class PromQLSensor(CoordinatorEntity[PromQLCoordinator], SensorEntity):
