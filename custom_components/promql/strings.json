@@ -35,6 +35,17 @@
           "data_description": {
             "query": "A valid PromQL expression returning a scalar or single-element instant vector"
           }
+        },
+        "reconfigure": {
+          "title": "Edit PromQL sensor",
+          "data": {
+            "name": "Sensor name",
+            "query": "PromQL expression",
+            "unit": "Unit of measurement"
+          },
+          "data_description": {
+            "query": "A valid PromQL expression returning a scalar or single-element instant vector"
+          }
         }
       },
       "abort": {

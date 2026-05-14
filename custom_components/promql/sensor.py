@@ -40,12 +40,13 @@ class PromQLSensor(CoordinatorEntity[PromQLCoordinator], SensorEntity):
         super().__init__(coordinator)
         self._subentry = subentry
         self._attr_unique_id = subentry.subentry_id
-        self._attr_name = subentry.title
+        self._attr_name = None  # primary entity — display name comes from device
         unit: str = subentry.data.get(CONF_UNIT, "")
         self._attr_native_unit_of_measurement = unit or None
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, coordinator.config_entry.entry_id)},
-            name=coordinator.prometheus_url,
+            identifiers={(DOMAIN, subentry.subentry_id)},
+            name=subentry.title,
+            model=coordinator.prometheus_url,
             manufacturer="Prometheus",
             entry_type=DeviceEntryType.SERVICE,
         )

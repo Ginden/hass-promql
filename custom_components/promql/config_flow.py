@@ -66,7 +66,7 @@ class PromQLConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class PromQLSensorSubentryFlow(ConfigSubentryFlow):
-    """Handle adding a new PromQL sensor subentry."""
+    """Handle adding and reconfiguring a PromQL sensor subentry."""
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -86,5 +86,29 @@ class PromQLSensorSubentryFlow(ConfigSubentryFlow):
                 vol.Required(CONF_NAME): str,
                 vol.Required(CONF_QUERY): str,
                 vol.Optional(CONF_UNIT, default=""): str,
+            }),
+        )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        subentry = self._get_reconfigure_subentry()
+        if user_input is not None:
+            return self.async_update_and_abort(
+                self._get_entry(),
+                subentry,
+                title=user_input[CONF_NAME],
+                data={
+                    CONF_QUERY: user_input[CONF_QUERY],
+                    CONF_UNIT: user_input.get(CONF_UNIT, ""),
+                },
+            )
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=vol.Schema({
+                vol.Required(CONF_NAME, default=subentry.title): str,
+                vol.Required(CONF_QUERY, default=subentry.data[CONF_QUERY]): str,
+                vol.Optional(CONF_UNIT, default=subentry.data.get(CONF_UNIT, "")): str,
             }),
         )
