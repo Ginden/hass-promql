@@ -1,0 +1,42 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Prometheus",
+        "data": {
+          "prometheus_url": "Prometheus URL"
+        },
+        "data_description": {
+          "prometheus_url": "Base URL of your Prometheus or compatible server (e.g. http://prometheus:9090)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect — check the URL and try again."
+    },
+    "abort": {
+      "already_configured": "This Prometheus instance is already configured."
+    }
+  },
+  "config_subentries": {
+    "sensor": {
+      "flow_title": "Add PromQL sensor",
+      "step": {
+        "user": {
+          "title": "Add PromQL sensor",
+          "data": {
+            "name": "Sensor name",
+            "query": "PromQL expression",
+            "unit": "Unit of measurement"
+          },
+          "data_description": {
+            "query": "A valid PromQL expression returning a scalar or single-element instant vector"
+          }
+        }
+      },
+      "abort": {
+        "already_configured": "A sensor with this configuration already exists."
+      }
+    }
+  }
+}
