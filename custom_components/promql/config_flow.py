@@ -12,7 +12,7 @@ from homeassistant.const import CONF_NAME
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .const import CONF_PROMETHEUS_URL, CONF_QUERY, CONF_UNIT, DOMAIN
+from .const import CONF_PROMETHEUS_URL, CONF_QUERY, CONF_SCAN_INTERVAL, CONF_UNIT, DEFAULT_SCAN_INTERVAL, DOMAIN
 
 
 class PromQLConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -46,13 +46,19 @@ class PromQLConfigFlow(ConfigFlow, domain=DOMAIN):
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(
                     title=url,
-                    data={CONF_PROMETHEUS_URL: url},
+                    data={
+                        CONF_PROMETHEUS_URL: url,
+                        CONF_SCAN_INTERVAL: user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+                    },
                 )
 
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema({
                 vol.Required(CONF_PROMETHEUS_URL): str,
+                vol.Optional(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): vol.All(
+                    int, vol.Range(min=5)
+                ),
             }),
             errors=errors,
         )

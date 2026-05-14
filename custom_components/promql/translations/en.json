@@ -4,7 +4,8 @@
       "user": {
         "title": "Connect to Prometheus",
         "data": {
-          "prometheus_url": "Prometheus URL"
+          "prometheus_url": "Prometheus URL",
+          "scan_interval": "Update interval (seconds)"
         },
         "data_description": {
           "prometheus_url": "Base URL of your Prometheus or compatible server (e.g. http://prometheus:9090)"

@@ -13,7 +13,13 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import CONF_PROMETHEUS_URL, CONF_QUERY, DEFAULT_SCAN_INTERVAL, DOMAIN
+from .const import (
+    CONF_PROMETHEUS_URL,
+    CONF_QUERY,
+    CONF_SCAN_INTERVAL,
+    DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,7 +34,9 @@ class PromQLCoordinator(DataUpdateCoordinator[dict[str, str | None]]):
             hass,
             _LOGGER,
             name=DOMAIN,
-            update_interval=timedelta(seconds=DEFAULT_SCAN_INTERVAL),
+            update_interval=timedelta(
+                seconds=entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+            ),
             config_entry=entry,
         )
         self.prometheus_url = entry.data[CONF_PROMETHEUS_URL].rstrip("/")
@@ -43,9 +51,8 @@ class PromQLCoordinator(DataUpdateCoordinator[dict[str, str | None]]):
             return {}
 
         session = async_get_clientsession(self.hass)
-        results: dict[str, str | None] = {}
 
-        for subentry in sensor_subentries:
+        async def _fetch(subentry: Any) -> tuple[str, str | None]:
             query: str = subentry.data[CONF_QUERY]
             try:
                 async with session.get(
@@ -55,11 +62,12 @@ class PromQLCoordinator(DataUpdateCoordinator[dict[str, str | None]]):
                 ) as resp:
                     resp.raise_for_status()
                     payload: dict[str, Any] = await resp.json()
-                    results[subentry.subentry_id] = _extract_scalar(payload)
+                    return subentry.subentry_id, _extract_scalar(payload)
             except (aiohttp.ClientError, asyncio.TimeoutError) as err:
                 raise UpdateFailed(f"Error querying Prometheus: {err}") from err
 
-        return results
+        pairs = await asyncio.gather(*(_fetch(s) for s in sensor_subentries))
+        return dict(pairs)
 
 
 def _extract_scalar(payload: dict[str, Any]) -> str | None:
