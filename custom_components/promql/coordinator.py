@@ -12,7 +12,7 @@ import aiohttp
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import (
     CONF_PROMETHEUS_URL,
@@ -62,11 +62,18 @@ class PromQLCoordinator(DataUpdateCoordinator[dict[str, str | None]]):
                     params={"query": query},
                     timeout=_QUERY_TIMEOUT,
                 ) as resp:
-                    resp.raise_for_status()
                     payload: dict[str, Any] = await resp.json()
+                    if resp.status != 200 or payload.get("status") != "success":
+                        _LOGGER.warning(
+                            "Prometheus query failed for %s: %s",
+                            query_id,
+                            _prometheus_error(payload, resp.status),
+                        )
+                        return query_id, None
                     return query_id, _extract_scalar(payload)
             except (TimeoutError, aiohttp.ClientError) as err:
-                raise UpdateFailed(f"Error querying Prometheus: {err}") from err
+                _LOGGER.warning("Prometheus query failed for %s: %s", query_id, err)
+                return query_id, None
 
         pairs = await asyncio.gather(
             *(
@@ -93,6 +100,17 @@ def _extract_scalar(payload: dict[str, Any]) -> str | None:
     except KeyError, IndexError, TypeError:
         pass
     return None
+
+
+def _prometheus_error(payload: dict[str, Any], status: int) -> str:
+    """Return a readable Prometheus API error."""
+    error = payload.get("error")
+    if isinstance(error, str):
+        return error
+    error_type = payload.get("errorType")
+    if isinstance(error_type, str):
+        return error_type
+    return f"HTTP {status}"
 
 
 def _is_query_config(value: Any) -> bool:
