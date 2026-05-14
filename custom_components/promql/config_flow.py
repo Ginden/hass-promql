@@ -7,6 +7,7 @@ from typing import Any
 
 import aiohttp
 import voluptuous as vol
+from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
@@ -19,6 +20,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.util import slugify
 
 from .const import (
+    CONF_DEVICE_CLASS,
     CONF_PROMETHEUS_URL,
     CONF_QUERIES,
     CONF_QUERY,
@@ -127,6 +129,7 @@ class PromQLOptionsFlow(OptionsFlow):
                     CONF_NAME: name,
                     CONF_QUERY: query,
                     CONF_UNIT: user_input.get(CONF_UNIT, "").strip(),
+                    CONF_DEVICE_CLASS: user_input.get(CONF_DEVICE_CLASS, ""),
                 }
                 return self._save_queries([*self._queries, query_config])
 
@@ -137,6 +140,9 @@ class PromQLOptionsFlow(OptionsFlow):
                     vol.Required(CONF_NAME): str,
                     vol.Required(CONF_QUERY): str,
                     vol.Optional(CONF_UNIT, default=""): str,
+                    vol.Optional(CONF_DEVICE_CLASS, default=""): vol.In(
+                        _device_class_selector()
+                    ),
                 }
             ),
             errors=errors,
@@ -181,6 +187,7 @@ class PromQLOptionsFlow(OptionsFlow):
                     CONF_NAME: name,
                     CONF_QUERY: query,
                     CONF_UNIT: user_input.get(CONF_UNIT, "").strip(),
+                    CONF_DEVICE_CLASS: user_input.get(CONF_DEVICE_CLASS, ""),
                 }
                 return self._save_queries(
                     [
@@ -200,6 +207,10 @@ class PromQLOptionsFlow(OptionsFlow):
                     vol.Optional(
                         CONF_UNIT, default=query_config.get(CONF_UNIT, "")
                     ): str,
+                    vol.Optional(
+                        CONF_DEVICE_CLASS,
+                        default=query_config.get(CONF_DEVICE_CLASS, ""),
+                    ): vol.In(_device_class_selector()),
                 }
             ),
             errors=errors,
@@ -261,6 +272,9 @@ def _queries_from_options(options: Mapping[str, Any]) -> list[QueryConfig]:
                     CONF_UNIT: item.get(CONF_UNIT, "")
                     if isinstance(item.get(CONF_UNIT), str)
                     else "",
+                    CONF_DEVICE_CLASS: item.get(CONF_DEVICE_CLASS, "")
+                    if isinstance(item.get(CONF_DEVICE_CLASS), str)
+                    else "",
                 }
             )
     return result
@@ -281,6 +295,14 @@ def _new_query_id(name: str, queries: list[QueryConfig]) -> str:
 def _query_selector(queries: list[QueryConfig]) -> dict[str, str]:
     """Return query IDs mapped to display names for form selectors."""
     return {query[CONF_QUERY_ID]: query[CONF_NAME] for query in queries}
+
+
+def _device_class_selector() -> dict[str, str]:
+    """Return sensor device class values mapped to display labels."""
+    return {"": "None"} | {
+        device_class.value: device_class.value.replace("_", " ").title()
+        for device_class in SensorDeviceClass
+    }
 
 
 def _find_query(queries: list[QueryConfig], query_id: str | None) -> QueryConfig | None:

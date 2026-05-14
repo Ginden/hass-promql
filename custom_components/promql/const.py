@@ -8,5 +8,6 @@ CONF_QUERY_ID = "query_id"
 CONF_QUERIES = "queries"
 CONF_QUERY = "query"
 CONF_UNIT = "unit"
+CONF_DEVICE_CLASS = "device_class"
 
 DEFAULT_SCAN_INTERVAL = 30

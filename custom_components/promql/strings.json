@@ -33,10 +33,12 @@
         "data": {
           "name": "Sensor name",
           "query": "PromQL expression",
-          "unit": "Unit of measurement"
+          "unit": "Unit of measurement",
+          "device_class": "Device class"
         },
         "data_description": {
-          "query": "A valid PromQL expression returning a scalar or single-element instant vector"
+          "query": "A valid PromQL expression returning a scalar or single-element instant vector",
+          "device_class": "Optional Home Assistant sensor device class used for unit conversion and statistics"
         }
       },
       "edit_sensor": {
@@ -50,10 +52,12 @@
         "data": {
           "name": "Sensor name",
           "query": "PromQL expression",
-          "unit": "Unit of measurement"
+          "unit": "Unit of measurement",
+          "device_class": "Device class"
         },
         "data_description": {
-          "query": "A valid PromQL expression returning a scalar or single-element instant vector"
+          "query": "A valid PromQL expression returning a scalar or single-element instant vector",
+          "device_class": "Optional Home Assistant sensor device class used for unit conversion and statistics"
         }
       },
       "delete_sensor": {

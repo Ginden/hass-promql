@@ -5,7 +5,11 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from homeassistant.components.sensor import SensorEntity, SensorStateClass
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_NAME
 from homeassistant.core import HomeAssistant
@@ -13,7 +17,14 @@ from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_QUERIES, CONF_QUERY, CONF_QUERY_ID, CONF_UNIT, DOMAIN
+from .const import (
+    CONF_DEVICE_CLASS,
+    CONF_QUERIES,
+    CONF_QUERY,
+    CONF_QUERY_ID,
+    CONF_UNIT,
+    DOMAIN,
+)
 from .coordinator import PromQLCoordinator
 
 
@@ -44,6 +55,9 @@ class PromQLSensor(CoordinatorEntity[PromQLCoordinator], SensorEntity):
         self._attr_name = query_config[CONF_NAME]
         unit = query_config.get(CONF_UNIT, "")
         self._attr_native_unit_of_measurement = unit or None
+        self._attr_device_class = _device_class_from_config(
+            query_config.get(CONF_DEVICE_CLASS, "")
+        )
         self._attr_state_class = SensorStateClass.MEASUREMENT if unit else None
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, coordinator.config_entry_id)},
@@ -87,6 +101,19 @@ def _query_configs(options: Mapping[str, Any]) -> list[dict[str, str]]:
                     CONF_UNIT: item.get(CONF_UNIT, "")
                     if isinstance(item.get(CONF_UNIT), str)
                     else "",
+                    CONF_DEVICE_CLASS: item.get(CONF_DEVICE_CLASS, "")
+                    if isinstance(item.get(CONF_DEVICE_CLASS), str)
+                    else "",
                 }
             )
     return result
+
+
+def _device_class_from_config(device_class: str) -> SensorDeviceClass | None:
+    """Return a validated sensor device class from stored config."""
+    if not device_class:
+        return None
+    try:
+        return SensorDeviceClass(device_class)
+    except ValueError:
+        return None
