@@ -32,21 +32,19 @@ async def async_setup_entry(
 class PromQLSensor(CoordinatorEntity[PromQLCoordinator], SensorEntity):
     """Sensor entity backed by a PromQL expression."""
 
-    _attr_has_entity_name = True
-    _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_icon = "mdi:chart-line"
 
     def __init__(self, coordinator: PromQLCoordinator, subentry: Any) -> None:
         super().__init__(coordinator)
         self._subentry = subentry
         self._attr_unique_id = subentry.subentry_id
-        self._attr_name = None  # primary entity — display name comes from device
+        self._attr_name = subentry.title
         unit: str = subentry.data.get(CONF_UNIT, "")
         self._attr_native_unit_of_measurement = unit or None
+        self._attr_state_class = SensorStateClass.MEASUREMENT if unit else None
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, subentry.subentry_id)},
-            name=subentry.title,
-            model=coordinator.prometheus_url,
+            name=coordinator.prometheus_url,
             manufacturer="Prometheus",
             entry_type=DeviceEntryType.SERVICE,
         )
