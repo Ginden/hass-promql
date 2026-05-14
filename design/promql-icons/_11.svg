@@ -1,1 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path fill="#e6522c" d="M22 20c-5 0-8 3-8 8v14c0 4-3 6-5 8 2 2 5 4 5 8v14c0 5 3 8 8 8v-6c-2 0-2-1-2-2v-14c0-4-3-6-5-8 2-2 5-4 5-8v-14c0-1 0-2 2-2z"/><path fill="#e6522c" d="M78 20c5 0 8 3 8 8v14c0 4 3 6 5 8-2 2-5 4-5 8v14c0 5-3 8-8 8v-6c2 0 2-1 2-2v-14c0-4 3-6 5-8-2-2-5-4-5-8v-14c0-1 0-2-2-2z"/><path fill="#e6522c" d="M50 10c5 15 20 25 20 45 0 15-10 25-20 25s-20-10-20-25c0-20 15-30 20-45zM50 30c-3 8-10 15-10 25 0 8 5 13 10 13s10-5 10-13c0-10-7-17-10-25z" fill-rule="evenodd"/><g transform="translate(38, 75) scale(0.6)"><circle cx="0" cy="15" r="6" fill="#e6522c"/><circle cx="40" cy="5" r="6" fill="#e6522c"/><path d="M5 25L35 0" stroke="#e6522c" stroke-width="6" stroke-linecap="round"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="PromQL icon candidate 11">
+  <rect width="256" height="256" rx="44" fill="#111827"/>
+  <path fill="#e6522c" d="M55 45c-13 0-22 9-22 22v35c0 10-7 16-13 21 6 5 13 11 13 21v35c0 13 9 22 22 22v-16c-5 0-6-3-6-6v-35c0-10-6-16-12-21 6-5 12-11 12-21V67c0-3 1-6 6-6z"/>
+  <path fill="#e6522c" d="M201 45c13 0 22 9 22 22v35c0 10 7 16 13 21-6 5-13 11-13 21v35c0 13-9 22-22 22v-16c5 0 6-3 6-6v-35c0-10 6-16 12-21-6-5-12-11-12-21V67c0-3-1-6-6-6z"/>
+  <path fill="#e6522c" fill-rule="evenodd" d="M128 27c13 38 51 63 51 113 0 38-25 63-51 63s-51-25-51-63c0-50 38-75 51-113zm0 51c-8 20-26 38-26 63 0 20 13 33 26 33s26-13 26-33c0-25-18-43-26-63z"/>
+  <g transform="translate(91 197)">
+    <path d="M10 22 36 5l29 13 30-24" fill="none" stroke="#38bdf8" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="10" cy="22" r="10" fill="#e6522c"/>
+    <circle cx="36" cy="5" r="10" fill="#e6522c"/>
+    <circle cx="65" cy="18" r="10" fill="#e6522c"/>
+    <circle cx="95" cy="-6" r="10" fill="#e6522c"/>
+  </g>
+</svg>
