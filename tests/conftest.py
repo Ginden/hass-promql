@@ -1,11 +1,14 @@
 """Fixtures for PromQL integration tests."""
+
 from __future__ import annotations
+
+from typing import Any
 
 import pytest
 
 
 @pytest.fixture
-def mock_prometheus_scalar() -> dict:
+def mock_prometheus_scalar() -> dict[str, Any]:
     """Prometheus API response for a scalar query."""
     return {
         "status": "success",
@@ -17,7 +20,7 @@ def mock_prometheus_scalar() -> dict:
 
 
 @pytest.fixture
-def mock_prometheus_vector() -> dict:
+def mock_prometheus_vector() -> dict[str, Any]:
     """Prometheus API response for a single-element instant vector query."""
     return {
         "status": "success",

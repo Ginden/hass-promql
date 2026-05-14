@@ -1,4 +1,5 @@
 """PromQL integration for Home Assistant."""
+
 from __future__ import annotations
 
 from homeassistant.config_entries import ConfigEntry
@@ -12,17 +13,18 @@ PLATFORMS = [Platform.SENSOR]
 type PromQLConfigEntry = ConfigEntry[PromQLCoordinator]
 
 
+async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload the config entry when options change."""
+    await hass.config_entries.async_reload(entry.entry_id)
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: PromQLConfigEntry) -> bool:
     """Set up PromQL from a config entry."""
     coordinator = PromQLCoordinator(hass, entry)
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    entry.async_on_unload(
-        entry.add_update_listener(
-            lambda hass, entry: hass.config_entries.async_schedule_reload(entry.entry_id)
-        )
-    )
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     return True
 
 

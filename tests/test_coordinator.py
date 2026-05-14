@@ -1,4 +1,5 @@
 """Smoke tests for PromQL coordinator helpers."""
+
 from custom_components.promql.coordinator import _extract_scalar
 
 
