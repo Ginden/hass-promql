@@ -44,8 +44,6 @@ async def async_setup_entry(
 class PromQLSensor(CoordinatorEntity[PromQLCoordinator], SensorEntity):
     """Sensor entity backed by a PromQL expression."""
 
-    _attr_icon = "mdi:chart-line"
-
     def __init__(
         self, coordinator: PromQLCoordinator, query_config: dict[str, str]
     ) -> None:
@@ -55,9 +53,11 @@ class PromQLSensor(CoordinatorEntity[PromQLCoordinator], SensorEntity):
         self._attr_name = query_config[CONF_NAME]
         unit = query_config.get(CONF_UNIT, "")
         self._attr_native_unit_of_measurement = unit or None
-        self._attr_device_class = _device_class_from_config(
+        device_class = _device_class_from_config(
             query_config.get(CONF_DEVICE_CLASS, "")
         )
+        self._attr_device_class = device_class
+        self._attr_icon = _icon_for_config(device_class)
         self._attr_state_class = SensorStateClass.MEASUREMENT if unit else None
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, coordinator.config_entry_id)},
@@ -117,3 +117,10 @@ def _device_class_from_config(device_class: str) -> SensorDeviceClass | None:
         return SensorDeviceClass(device_class)
     except ValueError:
         return None
+
+
+def _icon_for_config(device_class: SensorDeviceClass | None) -> str | None:
+    """Return the fallback icon when Home Assistant has no device class icon."""
+    if device_class is None:
+        return "mdi:chart-line"
+    return None

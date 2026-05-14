@@ -10,7 +10,11 @@ from custom_components.promql.const import (
     CONF_QUERY_ID,
     CONF_UNIT,
 )
-from custom_components.promql.sensor import _device_class_from_config, _query_configs
+from custom_components.promql.sensor import (
+    _device_class_from_config,
+    _icon_for_config,
+    _query_configs,
+)
 
 
 def test_query_configs_preserves_configured_device_class() -> None:
@@ -56,3 +60,8 @@ def test_device_class_from_config_validates_stored_value() -> None:
     assert _device_class_from_config("data_size") is SensorDeviceClass.DATA_SIZE
     assert _device_class_from_config("") is None
     assert _device_class_from_config("not_a_device_class") is None
+
+
+def test_icon_for_config_lets_device_class_provide_default_icon() -> None:
+    assert _icon_for_config(SensorDeviceClass.DATA_SIZE) is None
+    assert _icon_for_config(None) == "mdi:chart-line"
