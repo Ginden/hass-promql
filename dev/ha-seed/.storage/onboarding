@@ -1,0 +1,7 @@
+{
+  "version": 4,
+  "key": "onboarding",
+  "data": {
+    "done": ["user", "core_config", "analytics", "integration"]
+  }
+}

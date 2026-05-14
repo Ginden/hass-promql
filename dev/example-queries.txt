@@ -1,0 +1,23 @@
+# Example PromQL queries for the dev environment
+# Prometheus URL: http://localhost:9090
+
+# Always 1 when Prometheus itself is up
+up{job="prometheus"}
+
+# CPU usage % (host where node-exporter runs)
+100 - (avg(irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
+
+# Available memory in bytes
+node_memory_MemAvailable_bytes
+
+# Available memory in GiB
+node_memory_MemAvailable_bytes / 1024 / 1024 / 1024
+
+# Root filesystem free space in GiB
+node_filesystem_avail_bytes{mountpoint="/",fstype!="tmpfs"} / 1024 / 1024 / 1024
+
+# Prometheus HTTP requests per second
+rate(prometheus_http_requests_total[1m])
+
+# Number of active time series
+prometheus_tsdb_head_series

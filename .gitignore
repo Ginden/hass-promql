@@ -30,3 +30,7 @@ coverage.xml
 # Home Assistant
 *.db
 *.log
+
+# Dev environment runtime state — wipe with: rm -rf dev/ha-config && mkdir dev/ha-config
+dev/ha-config/*
+!dev/ha-config/.gitkeep

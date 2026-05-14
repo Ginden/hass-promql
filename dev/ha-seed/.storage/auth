@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "minor_version": 1,
+  "key": "auth",
+  "data": {
+    "users": [
+      {
+        "id": "164cea01-4fa6-4a83-b900-21b761ff628d",
+        "group_ids": ["system-admin"],
+        "local_only": false,
+        "name": "Dev",
+        "is_owner": true,
+        "is_active": true,
+        "system_generated": false
+      }
+    ],
+    "groups": [
+      {"id": "system-admin", "name": "Administrators"},
+      {"id": "system-users", "name": "Users"},
+      {"id": "system-read-only", "name": "Read Only"}
+    ],
+    "credentials": [
+      {
+        "id": "e2bad7a7-d186-439d-8d46-c6331d925009",
+        "is_new": false,
+        "auth_provider_type": "homeassistant",
+        "auth_provider_id": null,
+        "auth_provider_user_id": "dev",
+        "user_id": "164cea01-4fa6-4a83-b900-21b761ff628d",
+        "data": {}
+      }
+    ],
+    "refresh_tokens": []
+  }
+}

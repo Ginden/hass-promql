@@ -45,6 +45,33 @@ node_memory_MemAvailable_bytes{job="node"}
 100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
 ```
 
+## Local development
+
+```bash
+docker compose up --build
+```
+
+Starts Home Assistant, Prometheus, and node-exporter. On first run the init
+container seeds `dev/ha-config/` from the committed template in `dev/ha-seed/`.
+
+| Service       | URL                    |
+|---------------|------------------------|
+| Home Assistant | http://localhost:8123  |
+| Prometheus    | http://localhost:9090  |
+
+**Credentials:** `dev` / `dev`
+
+**First sensor to add:** go to Settings → Devices & Services → PromQL →
+Add entry. Use `http://prometheus:9090` as the Prometheus URL (Docker
+internal hostname). Example queries are in `dev/example-queries.txt`.
+
+To reset HA state: `rm -rf dev/ha-config && mkdir dev/ha-config`
+
+For a standalone self-contained image (no Prometheus bundled):
+```bash
+docker run -p 8123:8123 $(docker build -q .)
+```
+
 ## Notes
 
 - `aiohttp` is bundled with Home Assistant — no additional Python dependencies are installed

@@ -21,6 +21,19 @@ uv run ruff check custom_components/ tests/
 uv run mypy custom_components/promql/
 ```
 
+## Local dev environment
+
+```bash
+docker compose up --build          # start HA + Prometheus + node-exporter
+rm -rf dev/ha-config && mkdir dev/ha-config  # reset HA state (re-seeded on next up)
+```
+
+- HA at http://localhost:8123 — credentials `dev` / `dev` (seeded from `dev/ha-seed/`)
+- Prometheus at http://localhost:9090 — internal hostname `prometheus`
+- `dev/ha-config/` is a git-ignored bind mount (contents ignored via `dev/ha-config/*` + `.gitkeep`); `dev/ha-seed/` is the committed seed template
+- The `init` service copies the seed on first run only (idempotent)
+- Example PromQL queries in `dev/example-queries.txt`
+
 ## Architecture
 
 This is a Home Assistant custom integration that turns PromQL expressions into HA sensor entities.
