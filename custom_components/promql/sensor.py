@@ -62,7 +62,6 @@ class PromQLSensor(CoordinatorEntity[PromQLCoordinator], SensorEntity):
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, coordinator.config_entry_id)},
             name=coordinator.prometheus_url,
-            manufacturer="Prometheus",
             entry_type=DeviceEntryType.SERVICE,
         )
 
