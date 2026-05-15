@@ -1,5 +1,7 @@
 {
   "name": "PromQL",
+  "homeassistant": "2026.5.0",
   "render_readme": true,
-  "category": "integration"
+  "zip_release": true,
+  "filename": "promql.zip"
 }

@@ -52,7 +52,6 @@ class PromQLCoordinator(DataUpdateCoordinator[dict[str, str | None]]):
         )
         self.prometheus_url = entry.data[CONF_PROMETHEUS_URL].rstrip("/")
         self.config_entry_id = entry.entry_id
-        self._entry = entry
         self._auth_kwargs = _request_auth_kwargs(entry.data)
 
     async def async_query(self, query: str) -> QueryResult:
@@ -74,7 +73,8 @@ class PromQLCoordinator(DataUpdateCoordinator[dict[str, str | None]]):
             return _error_result(str(err) or err.__class__.__name__)
 
     async def _async_update_data(self) -> dict[str, str | None]:
-        queries = self._entry.options.get(CONF_QUERIES, [])
+        assert self.config_entry is not None
+        queries = self.config_entry.options.get(CONF_QUERIES, [])
         if not isinstance(queries, list) or not queries:
             return {}
 

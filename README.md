@@ -11,7 +11,8 @@ A Home Assistant custom component that lets you define [PromQL](https://promethe
 
 ## Requirements
 
-- Home Assistant 2024.11 or later (config subentries support)
+- Home Assistant 2026.5 or later
+- Python 3.14 or later
 
 ## Installation
 

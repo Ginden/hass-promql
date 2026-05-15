@@ -1,0 +1,33 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish-archive:
+    name: Publish HACS archive
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set manifest version from tag
+        run: |
+          version="${{ github.event.release.tag_name }}"
+          version="${version#v}"
+          jq --arg v "$version" '.version = $v' \
+            custom_components/promql/manifest.json > manifest.tmp
+          mv manifest.tmp custom_components/promql/manifest.json
+
+      - name: Build zip
+        working-directory: custom_components/promql
+        run: zip -r promql.zip .
+
+      - name: Upload archive to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: custom_components/promql/promql.zip
+          asset_name: promql.zip
+          tag: ${{ github.ref }}
+          overwrite: true

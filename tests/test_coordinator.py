@@ -62,7 +62,7 @@ def _make_coordinator(
     coordinator: Any = object.__new__(PromQLCoordinator)
     coordinator.hass = object()
     coordinator.prometheus_url = "http://prometheus:9090"
-    coordinator._entry = entry
+    coordinator.config_entry = entry
     coordinator._auth_kwargs = auth_kwargs or {}
     return cast(PromQLCoordinator, coordinator)
 
