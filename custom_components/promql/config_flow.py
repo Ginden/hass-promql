@@ -15,21 +15,36 @@ from homeassistant.config_entries import (
     OptionsFlow,
 )
 from homeassistant.const import CONF_NAME, CONF_PASSWORD, CONF_USERNAME
-from homeassistant.core import callback
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.selector import (
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
+    TextSelector,
+    TextSelectorConfig,
+    TextSelectorType,
+)
 from homeassistant.util import slugify
 
 from .const import (
+    AUTH_TYPE_BASIC,
+    AUTH_TYPE_BEARER,
+    AUTH_TYPE_NONE,
+    AUTH_TYPES,
+    CONF_AUTH_TYPE,
     CONF_DEVICE_CLASS,
     CONF_PROMETHEUS_URL,
     CONF_QUERIES,
     CONF_QUERY,
     CONF_QUERY_ID,
     CONF_SCAN_INTERVAL,
+    CONF_TOKEN,
     CONF_UNIT,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
 )
+from .coordinator import PromQLCoordinator, _request_auth_kwargs
 
 type QueryConfig = dict[str, str]
 
@@ -46,18 +61,16 @@ class PromQLConfigFlow(ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             url = user_input[CONF_PROMETHEUS_URL].rstrip("/")
-            username = (user_input.get(CONF_USERNAME) or "").strip()
-            password = user_input.get(CONF_PASSWORD) or ""
-            errors = await _validate_connection(
-                self.hass, url, username, password
-            )
+            creds, errors = _validate_credentials(user_input)
+            if not errors:
+                errors = await _validate_connection(self.hass, url, creds)
 
             if not errors:
                 await self.async_set_unique_id(url)
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(
                     title=url,
-                    data=_build_entry_data(url, username, password, user_input),
+                    data=_build_entry_data(url, creds, user_input),
                 )
 
         return self.async_show_form(
@@ -75,11 +88,9 @@ class PromQLConfigFlow(ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             url = user_input[CONF_PROMETHEUS_URL].rstrip("/")
-            username = (user_input.get(CONF_USERNAME) or "").strip()
-            password = user_input.get(CONF_PASSWORD) or ""
-            errors = await _validate_connection(
-                self.hass, url, username, password
-            )
+            creds, errors = _validate_credentials(user_input)
+            if not errors:
+                errors = await _validate_connection(self.hass, url, creds)
 
             if not errors:
                 await self.async_set_unique_id(url)
@@ -87,7 +98,7 @@ class PromQLConfigFlow(ConfigFlow, domain=DOMAIN):
                 return self.async_update_reload_and_abort(
                     entry,
                     title=url,
-                    data=_build_entry_data(url, username, password, user_input),
+                    data=_build_entry_data(url, creds, user_input),
                 )
 
         return self.async_show_form(
@@ -118,7 +129,28 @@ class PromQLOptionsFlow(OptionsFlow):
         menu_options = ["add_sensor"]
         if self._queries:
             menu_options.extend(("edit_sensor", "delete_sensor"))
+        menu_options.append("test_query")
         return self.async_show_menu(step_id="init", menu_options=menu_options)
+
+    async def async_step_test_query(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Run an arbitrary PromQL expression against the entry's Prometheus."""
+        default_query = user_input[CONF_QUERY].strip() if user_input else "1"
+        placeholders = {"result": "—"}
+
+        if user_input is not None and default_query:
+            coordinator: PromQLCoordinator = self._config_entry.runtime_data
+            result = await coordinator.async_query(default_query)
+            placeholders["result"] = _format_query_result(result)
+
+        return self.async_show_form(
+            step_id="test_query",
+            data_schema=vol.Schema(
+                {vol.Required(CONF_QUERY, default=default_query): str}
+            ),
+            description_placeholders=placeholders,
+        )
 
     async def async_step_add_sensor(
         self, user_input: dict[str, Any] | None = None
@@ -326,12 +358,25 @@ def _find_query(queries: list[QueryConfig], query_id: str | None) -> QueryConfig
 def _connection_schema(defaults: Mapping[str, Any] | None = None) -> vol.Schema:
     """Return the schema for the URL/credentials/scan interval form."""
     defaults = defaults or {}
+    password_input = TextSelector(
+        TextSelectorConfig(type=TextSelectorType.PASSWORD)
+    )
     return vol.Schema(
         {
             vol.Required(
                 CONF_PROMETHEUS_URL,
                 default=defaults.get(CONF_PROMETHEUS_URL, vol.UNDEFINED),
             ): str,
+            vol.Required(
+                CONF_AUTH_TYPE,
+                default=defaults.get(CONF_AUTH_TYPE, AUTH_TYPE_NONE),
+            ): SelectSelector(
+                SelectSelectorConfig(
+                    options=list(AUTH_TYPES),
+                    translation_key=CONF_AUTH_TYPE,
+                    mode=SelectSelectorMode.DROPDOWN,
+                )
+            ),
             vol.Optional(
                 CONF_USERNAME,
                 default=defaults.get(CONF_USERNAME, ""),
@@ -339,7 +384,11 @@ def _connection_schema(defaults: Mapping[str, Any] | None = None) -> vol.Schema:
             vol.Optional(
                 CONF_PASSWORD,
                 default=defaults.get(CONF_PASSWORD, ""),
-            ): str,
+            ): password_input,
+            vol.Optional(
+                CONF_TOKEN,
+                default=defaults.get(CONF_TOKEN, ""),
+            ): password_input,
             vol.Optional(
                 CONF_SCAN_INTERVAL,
                 default=defaults.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
@@ -348,32 +397,67 @@ def _connection_schema(defaults: Mapping[str, Any] | None = None) -> vol.Schema:
     )
 
 
+type Credentials = dict[str, str]
+
+
+def _validate_credentials(
+    user_input: Mapping[str, Any],
+) -> tuple[Credentials, dict[str, str]]:
+    """Return normalized credential fields plus any form errors."""
+    auth_type = user_input.get(CONF_AUTH_TYPE, AUTH_TYPE_NONE)
+    if auth_type == AUTH_TYPE_BASIC:
+        username = (user_input.get(CONF_USERNAME) or "").strip()
+        password = user_input.get(CONF_PASSWORD) or ""
+        if not username:
+            return {}, {CONF_USERNAME: "required"}
+        return (
+            {
+                CONF_AUTH_TYPE: AUTH_TYPE_BASIC,
+                CONF_USERNAME: username,
+                CONF_PASSWORD: password,
+            },
+            {},
+        )
+    if auth_type == AUTH_TYPE_BEARER:
+        token = (user_input.get(CONF_TOKEN) or "").strip()
+        if not token:
+            return {}, {CONF_TOKEN: "required"}
+        return {CONF_AUTH_TYPE: AUTH_TYPE_BEARER, CONF_TOKEN: token}, {}
+    return {CONF_AUTH_TYPE: AUTH_TYPE_NONE}, {}
+
+
 def _build_entry_data(
-    url: str, username: str, password: str, user_input: Mapping[str, Any]
+    url: str, creds: Credentials, user_input: Mapping[str, Any]
 ) -> dict[str, Any]:
     """Build the data dict stored on the config entry."""
-    data: dict[str, Any] = {
+    return {
         CONF_PROMETHEUS_URL: url,
         CONF_SCAN_INTERVAL: user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+        **creds,
     }
-    if username:
-        data[CONF_USERNAME] = username
-        data[CONF_PASSWORD] = password
-    return data
+
+
+def _format_query_result(result: Mapping[str, Any]) -> str:
+    """Render a coordinator query result for display in the test-query form."""
+    if result.get("status") == "success":
+        raw = result.get("raw_value")
+        if raw is None:
+            return "OK (no scalar result — query returned multiple series or empty)"
+        return f"OK: {raw}"
+    return f"Error: {result.get('error') or 'unknown error'}"
 
 
 async def _validate_connection(
-    hass: Any, url: str, username: str, password: str
+    hass: HomeAssistant, url: str, creds: Mapping[str, Any]
 ) -> dict[str, str]:
     """Probe the Prometheus instance and return form errors, if any."""
-    auth = aiohttp.BasicAuth(username, password) if username else None
     try:
         session = async_get_clientsession(hass)
         async with session.get(
             f"{url}/api/v1/query",
             params={"query": "1"},
-            auth=auth,
             timeout=aiohttp.ClientTimeout(total=5),
+            **_request_auth_kwargs(creds),
         ) as resp:
             if resp.status in (401, 403):
                 return {"base": "invalid_auth"}

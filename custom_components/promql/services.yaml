@@ -1,0 +1,13 @@
+query:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: promql
+    query:
+      required: true
+      example: 'sum(rate(http_requests_total[5m]))'
+      selector:
+        text:
+          multiline: true

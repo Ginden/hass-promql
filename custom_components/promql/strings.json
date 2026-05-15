@@ -5,34 +5,43 @@
         "title": "Connect to Prometheus",
         "data": {
           "prometheus_url": "Prometheus URL",
+          "auth_type": "Authentication",
           "username": "Username",
           "password": "Password",
+          "token": "Bearer token",
           "scan_interval": "Update interval (seconds)"
         },
         "data_description": {
           "prometheus_url": "Base URL of your Prometheus or compatible server (e.g. http://prometheus:9090)",
-          "username": "Leave blank if the server does not require authentication",
-          "password": "Used together with the username for HTTP basic authentication"
+          "auth_type": "Pick None for an unauthenticated Prometheus, Basic for HTTP basic auth, or Bearer token if a proxy (oauth2-proxy, Grafana Cloud, kube-rbac-proxy) accepts an Authorization header",
+          "username": "Username for HTTP basic authentication",
+          "password": "Password for HTTP basic authentication",
+          "token": "Sent verbatim in the Authorization: Bearer header"
         }
       },
       "reconfigure": {
         "title": "Reconfigure Prometheus connection",
         "data": {
           "prometheus_url": "Prometheus URL",
+          "auth_type": "Authentication",
           "username": "Username",
           "password": "Password",
+          "token": "Bearer token",
           "scan_interval": "Update interval (seconds)"
         },
         "data_description": {
           "prometheus_url": "Base URL of your Prometheus or compatible server (e.g. http://prometheus:9090)",
-          "username": "Leave blank if the server does not require authentication",
-          "password": "Used together with the username for HTTP basic authentication"
+          "auth_type": "Pick None for an unauthenticated Prometheus, Basic for HTTP basic auth, or Bearer token if a proxy (oauth2-proxy, Grafana Cloud, kube-rbac-proxy) accepts an Authorization header",
+          "username": "Username for HTTP basic authentication",
+          "password": "Password for HTTP basic authentication",
+          "token": "Sent verbatim in the Authorization: Bearer header"
         }
       }
     },
     "error": {
       "cannot_connect": "Failed to connect — check the URL and try again.",
-      "invalid_auth": "Authentication failed — check the username and password."
+      "invalid_auth": "Authentication failed — check the credentials.",
+      "required": "This field is required."
     },
     "abort": {
       "already_configured": "This Prometheus instance is already configured.",
@@ -46,7 +55,8 @@
         "menu_options": {
           "add_sensor": "Add PromQL sensor",
           "edit_sensor": "Edit PromQL sensor",
-          "delete_sensor": "Delete PromQL sensor"
+          "delete_sensor": "Delete PromQL sensor",
+          "test_query": "Test query"
         }
       },
       "add_sensor": {
@@ -86,6 +96,16 @@
         "data": {
           "query_id": "Sensor"
         }
+      },
+      "test_query": {
+        "title": "Test PromQL query",
+        "description": "Run a PromQL expression against the configured Prometheus instance. Last result: {result}",
+        "data": {
+          "query": "PromQL expression"
+        },
+        "data_description": {
+          "query": "Submit to run the expression and see the scalar result or the Prometheus error"
+        }
       }
     },
     "error": {
@@ -93,6 +113,39 @@
     },
     "abort": {
       "query_not_found": "The selected PromQL sensor no longer exists."
+    }
+  },
+  "selector": {
+    "auth_type": {
+      "options": {
+        "none": "None",
+        "basic": "Basic auth",
+        "bearer": "Bearer token"
+      }
+    }
+  },
+  "exceptions": {
+    "invalid_entry": {
+      "message": "No PromQL config entry with id {entry_id}."
+    },
+    "entry_not_loaded": {
+      "message": "The PromQL config entry is not loaded."
+    }
+  },
+  "services": {
+    "query": {
+      "name": "Run PromQL query",
+      "description": "Runs a PromQL instant query against a configured Prometheus instance and returns the scalar result.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Prometheus instance",
+          "description": "Configured Prometheus connection to query against."
+        },
+        "query": {
+          "name": "PromQL expression",
+          "description": "Any PromQL expression. For automation use, prefer expressions that reduce to a scalar or single-element instant vector."
+        }
+      }
     }
   }
 }

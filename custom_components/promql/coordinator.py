@@ -16,11 +16,16 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import (
+    AUTH_TYPE_BASIC,
+    AUTH_TYPE_BEARER,
+    AUTH_TYPE_NONE,
+    CONF_AUTH_TYPE,
     CONF_PROMETHEUS_URL,
     CONF_QUERIES,
     CONF_QUERY,
     CONF_QUERY_ID,
     CONF_SCAN_INTERVAL,
+    CONF_TOKEN,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
 )
@@ -28,6 +33,8 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 _QUERY_TIMEOUT = aiohttp.ClientTimeout(total=10)
+
+type QueryResult = dict[str, Any]
 
 
 class PromQLCoordinator(DataUpdateCoordinator[dict[str, str | None]]):
@@ -46,42 +53,39 @@ class PromQLCoordinator(DataUpdateCoordinator[dict[str, str | None]]):
         self.prometheus_url = entry.data[CONF_PROMETHEUS_URL].rstrip("/")
         self.config_entry_id = entry.entry_id
         self._entry = entry
-        username = entry.data.get(CONF_USERNAME)
-        self._auth: aiohttp.BasicAuth | None = (
-            aiohttp.BasicAuth(username, entry.data.get(CONF_PASSWORD, ""))
-            if username
-            else None
-        )
+        self._auth_kwargs = _request_auth_kwargs(entry.data)
+
+    async def async_query(self, query: str) -> QueryResult:
+        """Run a single PromQL query and return a structured result."""
+        session = async_get_clientsession(self.hass)
+        try:
+            async with session.get(
+                f"{self.prometheus_url}/api/v1/query",
+                params={"query": query},
+                timeout=_QUERY_TIMEOUT,
+                **self._auth_kwargs,
+            ) as resp:
+                payload: dict[str, Any] = await resp.json()
+                if resp.status != 200 or payload.get("status") != "success":
+                    return _error_result(_prometheus_error(payload, resp.status))
+                raw = _extract_scalar(payload)
+                return _success_result(raw)
+        except (TimeoutError, aiohttp.ClientError) as err:
+            return _error_result(str(err) or err.__class__.__name__)
 
     async def _async_update_data(self) -> dict[str, str | None]:
         queries = self._entry.options.get(CONF_QUERIES, [])
         if not isinstance(queries, list) or not queries:
             return {}
 
-        session = async_get_clientsession(self.hass)
-
         async def _fetch(query_config: dict[str, Any]) -> tuple[str, str | None]:
             query_id: str = query_config[CONF_QUERY_ID]
-            query: str = query_config[CONF_QUERY]
-            try:
-                async with session.get(
-                    f"{self.prometheus_url}/api/v1/query",
-                    params={"query": query},
-                    auth=self._auth,
-                    timeout=_QUERY_TIMEOUT,
-                ) as resp:
-                    payload: dict[str, Any] = await resp.json()
-                    if resp.status != 200 or payload.get("status") != "success":
-                        _LOGGER.warning(
-                            "Prometheus query failed for %s: %s",
-                            query_id,
-                            _prometheus_error(payload, resp.status),
-                        )
-                        return query_id, None
-                    return query_id, _extract_scalar(payload)
-            except (TimeoutError, aiohttp.ClientError) as err:
-                _LOGGER.warning("Prometheus query failed for %s: %s", query_id, err)
-                return query_id, None
+            result = await self.async_query(query_config[CONF_QUERY])
+            if result["status"] != "success":
+                _LOGGER.warning(
+                    "Prometheus query failed for %s: %s", query_id, result["error"]
+                )
+            return query_id, result["raw_value"]
 
         pairs = await asyncio.gather(
             *(
@@ -128,3 +132,43 @@ def _is_query_config(value: Any) -> bool:
         and isinstance(value.get(CONF_QUERY_ID), str)
         and isinstance(value.get(CONF_QUERY), str)
     )
+
+
+def _request_auth_kwargs(data: Mapping[str, Any]) -> dict[str, Any]:
+    """Translate stored credentials into aiohttp request kwargs."""
+    auth_type = data.get(CONF_AUTH_TYPE, AUTH_TYPE_NONE)
+    if auth_type == AUTH_TYPE_BASIC:
+        return {
+            "auth": aiohttp.BasicAuth(
+                data.get(CONF_USERNAME, ""),
+                data.get(CONF_PASSWORD, ""),
+            )
+        }
+    if auth_type == AUTH_TYPE_BEARER:
+        return {"headers": {"Authorization": f"Bearer {data.get(CONF_TOKEN, '')}"}}
+    return {}
+
+
+def _success_result(raw: str | None) -> QueryResult:
+    """Build a success result from the Prometheus raw scalar string."""
+    value: float | None
+    try:
+        value = float(raw) if raw is not None else None
+    except ValueError:
+        value = None
+    return {
+        "status": "success",
+        "value": value,
+        "raw_value": raw,
+        "error": None,
+    }
+
+
+def _error_result(error: str) -> QueryResult:
+    """Build an error result with a readable message."""
+    return {
+        "status": "error",
+        "value": None,
+        "raw_value": None,
+        "error": error,
+    }
