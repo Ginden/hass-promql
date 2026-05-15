@@ -1,12 +1,12 @@
 {
   "domain": "promql",
   "name": "PromQL",
-  "version": "0.1.0",
-  "documentation": "https://github.com/Ginden/hass-promql",
-  "issue_tracker": "https://github.com/Ginden/hass-promql/issues",
   "codeowners": ["@Ginden"],
-  "requirements": [],
   "config_flow": true,
+  "documentation": "https://github.com/Ginden/hass-promql",
+  "integration_type": "hub",
   "iot_class": "local_polling",
-  "integration_type": "hub"
+  "issue_tracker": "https://github.com/Ginden/hass-promql/issues",
+  "requirements": [],
+  "version": "0.1.0"
 }
