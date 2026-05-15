@@ -14,7 +14,7 @@ from homeassistant.config_entries import (
     ConfigFlowResult,
     OptionsFlow,
 )
-from homeassistant.const import CONF_NAME
+from homeassistant.const import CONF_NAME, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.util import slugify
@@ -46,43 +46,53 @@ class PromQLConfigFlow(ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             url = user_input[CONF_PROMETHEUS_URL].rstrip("/")
-            try:
-                session = async_get_clientsession(self.hass)
-                async with session.get(
-                    f"{url}/api/v1/query",
-                    params={"query": "1"},
-                    timeout=aiohttp.ClientTimeout(total=5),
-                ) as resp:
-                    resp.raise_for_status()
-                    data = await resp.json()
-                    if data.get("status") != "success":
-                        errors["base"] = "cannot_connect"
-            except TimeoutError, aiohttp.ClientError:
-                errors["base"] = "cannot_connect"
+            username = (user_input.get(CONF_USERNAME) or "").strip()
+            password = user_input.get(CONF_PASSWORD) or ""
+            errors = await _validate_connection(
+                self.hass, url, username, password
+            )
 
             if not errors:
                 await self.async_set_unique_id(url)
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(
                     title=url,
-                    data={
-                        CONF_PROMETHEUS_URL: url,
-                        CONF_SCAN_INTERVAL: user_input.get(
-                            CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
-                        ),
-                    },
+                    data=_build_entry_data(url, username, password, user_input),
                 )
 
         return self.async_show_form(
             step_id="user",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_PROMETHEUS_URL): str,
-                    vol.Optional(
-                        CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL
-                    ): vol.All(int, vol.Range(min=5)),
-                }
-            ),
+            data_schema=_connection_schema(),
+            errors=errors,
+        )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Allow editing the Prometheus URL, credentials, and scan interval."""
+        entry = self._get_reconfigure_entry()
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            url = user_input[CONF_PROMETHEUS_URL].rstrip("/")
+            username = (user_input.get(CONF_USERNAME) or "").strip()
+            password = user_input.get(CONF_PASSWORD) or ""
+            errors = await _validate_connection(
+                self.hass, url, username, password
+            )
+
+            if not errors:
+                await self.async_set_unique_id(url)
+                self._abort_if_unique_id_mismatch(reason="url_mismatch")
+                return self.async_update_reload_and_abort(
+                    entry,
+                    title=url,
+                    data=_build_entry_data(url, username, password, user_input),
+                )
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=_connection_schema(defaults=entry.data),
             errors=errors,
         )
 
@@ -311,3 +321,66 @@ def _find_query(queries: list[QueryConfig], query_id: str | None) -> QueryConfig
         if query[CONF_QUERY_ID] == query_id:
             return query
     return None
+
+
+def _connection_schema(defaults: Mapping[str, Any] | None = None) -> vol.Schema:
+    """Return the schema for the URL/credentials/scan interval form."""
+    defaults = defaults or {}
+    return vol.Schema(
+        {
+            vol.Required(
+                CONF_PROMETHEUS_URL,
+                default=defaults.get(CONF_PROMETHEUS_URL, vol.UNDEFINED),
+            ): str,
+            vol.Optional(
+                CONF_USERNAME,
+                default=defaults.get(CONF_USERNAME, ""),
+            ): str,
+            vol.Optional(
+                CONF_PASSWORD,
+                default=defaults.get(CONF_PASSWORD, ""),
+            ): str,
+            vol.Optional(
+                CONF_SCAN_INTERVAL,
+                default=defaults.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+            ): vol.All(int, vol.Range(min=5)),
+        }
+    )
+
+
+def _build_entry_data(
+    url: str, username: str, password: str, user_input: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Build the data dict stored on the config entry."""
+    data: dict[str, Any] = {
+        CONF_PROMETHEUS_URL: url,
+        CONF_SCAN_INTERVAL: user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+    }
+    if username:
+        data[CONF_USERNAME] = username
+        data[CONF_PASSWORD] = password
+    return data
+
+
+async def _validate_connection(
+    hass: Any, url: str, username: str, password: str
+) -> dict[str, str]:
+    """Probe the Prometheus instance and return form errors, if any."""
+    auth = aiohttp.BasicAuth(username, password) if username else None
+    try:
+        session = async_get_clientsession(hass)
+        async with session.get(
+            f"{url}/api/v1/query",
+            params={"query": "1"},
+            auth=auth,
+            timeout=aiohttp.ClientTimeout(total=5),
+        ) as resp:
+            if resp.status in (401, 403):
+                return {"base": "invalid_auth"}
+            resp.raise_for_status()
+            data = await resp.json()
+            if data.get("status") != "success":
+                return {"base": "cannot_connect"}
+    except (TimeoutError, aiohttp.ClientError):
+        return {"base": "cannot_connect"}
+    return {}

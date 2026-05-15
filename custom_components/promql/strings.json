@@ -5,18 +5,39 @@
         "title": "Connect to Prometheus",
         "data": {
           "prometheus_url": "Prometheus URL",
+          "username": "Username",
+          "password": "Password",
           "scan_interval": "Update interval (seconds)"
         },
         "data_description": {
-          "prometheus_url": "Base URL of your Prometheus or compatible server (e.g. http://prometheus:9090)"
+          "prometheus_url": "Base URL of your Prometheus or compatible server (e.g. http://prometheus:9090)",
+          "username": "Leave blank if the server does not require authentication",
+          "password": "Used together with the username for HTTP basic authentication"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Prometheus connection",
+        "data": {
+          "prometheus_url": "Prometheus URL",
+          "username": "Username",
+          "password": "Password",
+          "scan_interval": "Update interval (seconds)"
+        },
+        "data_description": {
+          "prometheus_url": "Base URL of your Prometheus or compatible server (e.g. http://prometheus:9090)",
+          "username": "Leave blank if the server does not require authentication",
+          "password": "Used together with the username for HTTP basic authentication"
         }
       }
     },
     "error": {
-      "cannot_connect": "Failed to connect — check the URL and try again."
+      "cannot_connect": "Failed to connect — check the URL and try again.",
+      "invalid_auth": "Authentication failed — check the username and password."
     },
     "abort": {
-      "already_configured": "This Prometheus instance is already configured."
+      "already_configured": "This Prometheus instance is already configured.",
+      "reconfigure_successful": "Prometheus connection updated.",
+      "url_mismatch": "The new URL belongs to a different Prometheus instance."
     }
   },
   "options": {

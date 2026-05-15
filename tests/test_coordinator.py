@@ -2,6 +2,7 @@
 
 from typing import Any, cast
 
+import aiohttp
 import pytest
 
 from custom_components.promql.const import CONF_QUERIES, CONF_QUERY, CONF_QUERY_ID
@@ -44,11 +45,14 @@ class _FakeEntry:
         self.options = options
 
 
-def _make_coordinator(entry: _FakeEntry) -> PromQLCoordinator:
+def _make_coordinator(
+    entry: _FakeEntry, auth: aiohttp.BasicAuth | None = None
+) -> PromQLCoordinator:
     coordinator: Any = object.__new__(PromQLCoordinator)
     coordinator.hass = object()
     coordinator.prometheus_url = "http://prometheus:9090"
     coordinator._entry = entry
+    coordinator._auth = auth
     return cast(PromQLCoordinator, coordinator)
 
 
@@ -118,9 +122,38 @@ async def test_update_data_sends_promql_query_unchanged(
         {
             "url": "http://prometheus:9090/api/v1/query",
             "params": {"query": query},
+            "auth": None,
             "timeout": _QUERY_TIMEOUT,
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_update_data_sends_basic_auth_when_configured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _FakeSession(
+        _FakeResponse(
+            200,
+            {
+                "status": "success",
+                "data": {"resultType": "scalar", "result": [1715000000.0, "1"]},
+            },
+        )
+    )
+    monkeypatch.setattr(
+        "custom_components.promql.coordinator.async_get_clientsession",
+        lambda hass: session,
+    )
+
+    auth = aiohttp.BasicAuth("alice", "s3cret")
+    coordinator = _make_coordinator(
+        _FakeEntry({CONF_QUERIES: [{CONF_QUERY_ID: "ping", CONF_QUERY: "1"}]}),
+        auth=auth,
+    )
+
+    assert await coordinator._async_update_data() == {"ping": "1"}
+    assert session.requests[0]["auth"] is auth
 
 
 @pytest.mark.asyncio

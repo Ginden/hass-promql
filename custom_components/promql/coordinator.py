@@ -10,6 +10,7 @@ from typing import Any
 
 import aiohttp
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
@@ -45,6 +46,12 @@ class PromQLCoordinator(DataUpdateCoordinator[dict[str, str | None]]):
         self.prometheus_url = entry.data[CONF_PROMETHEUS_URL].rstrip("/")
         self.config_entry_id = entry.entry_id
         self._entry = entry
+        username = entry.data.get(CONF_USERNAME)
+        self._auth: aiohttp.BasicAuth | None = (
+            aiohttp.BasicAuth(username, entry.data.get(CONF_PASSWORD, ""))
+            if username
+            else None
+        )
 
     async def _async_update_data(self) -> dict[str, str | None]:
         queries = self._entry.options.get(CONF_QUERIES, [])
@@ -60,6 +67,7 @@ class PromQLCoordinator(DataUpdateCoordinator[dict[str, str | None]]):
                 async with session.get(
                     f"{self.prometheus_url}/api/v1/query",
                     params={"query": query},
+                    auth=self._auth,
                     timeout=_QUERY_TIMEOUT,
                 ) as resp:
                     payload: dict[str, Any] = await resp.json()
