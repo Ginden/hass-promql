@@ -4,8 +4,8 @@ A Home Assistant custom component that lets you define [PromQL](https://promethe
 
 ## Features
 
-- Configure Prometheus connections via the Home Assistant UI
-- Add any number of PromQL sensors per Prometheus instance
+- Configure multiple Prometheus-compatible instances via the Home Assistant UI
+- Add any number of PromQL sensors per instance
 - Sensors update every 30 seconds
 - Installable via [HACS](https://hacs.xyz)
 
@@ -30,7 +30,25 @@ Copy `custom_components/promql/` into your Home Assistant `custom_components/` d
 
 1. Go to **Settings → Devices & Services → Add Integration** and search for **PromQL**
 2. Enter the base URL of your Prometheus server (e.g. `http://prometheus:9090`)
-3. Add sensors by clicking **Add entry** on the integration card — each sensor takes a name, a PromQL expression, and an optional unit of measurement
+3. Add sensors by clicking **Add entry** on the integration card — each sensor takes a name, a PromQL expression, and an optional unit of measurement and device class
+
+![Add sensor dialog](docs/promql_integration_3.png)
+
+Multiple Prometheus-compatible instances can be configured side by side (e.g. Prometheus, VictoriaMetrics, Thanos):
+
+![Multiple instances](docs/promql_integration_6.png)
+
+Each sensor is a subentry that can be edited, deleted, or test-queried from its row menu:
+
+![Subentry menu](docs/promql_integration_2.png)
+
+Each sensor appears under a service-type device grouped per instance:
+
+![Device page with sensors](docs/promql_integration_5.png)
+
+A `promql.query` service is also registered, which runs an ad-hoc instant query against a configured instance from Developer Tools or automations:
+
+![promql.query service](docs/promql_integration_7.png)
 
 ## Query requirements
 
