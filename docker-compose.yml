@@ -6,7 +6,7 @@ services:
       - ./custom_components:/config/custom_components:ro
     ports:
       - "8123:8123"
-    restart: unless-stopped
+    restart: on-failure
     environment:
       TZ: UTC
 
@@ -14,7 +14,7 @@ services:
     image: prom/prometheus:latest
     volumes:
       - ./dev/prometheus:/etc/prometheus:ro
-    restart: unless-stopped
+    restart: on-failure
 
   node-exporter:
     image: prom/node-exporter:latest
@@ -26,4 +26,4 @@ services:
       - "--path.procfs=/host/proc"
       - "--path.sysfs=/host/sys"
       - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
-    restart: unless-stopped
+    restart: on-failure
