@@ -9,6 +9,7 @@ CONF_QUERIES = "queries"
 CONF_QUERY = "query"
 CONF_UNIT = "unit"
 CONF_DEVICE_CLASS = "device_class"
+CONF_STATE_CLASS = "state_class"
 CONF_AUTH_TYPE = "auth_type"
 CONF_TOKEN = "token"
 
@@ -18,3 +19,5 @@ AUTH_TYPE_BEARER = "bearer"
 AUTH_TYPES = (AUTH_TYPE_NONE, AUTH_TYPE_BASIC, AUTH_TYPE_BEARER)
 
 DEFAULT_SCAN_INTERVAL = 30
+DEFAULT_STATE_CLASS = "measurement"
+STATE_CLASS_NONE = "none"

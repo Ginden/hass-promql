@@ -7,7 +7,7 @@ from typing import Any
 
 import aiohttp
 import voluptuous as vol
-from homeassistant.components.sensor import SensorDeviceClass
+from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
 from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
@@ -39,10 +39,13 @@ from .const import (
     CONF_QUERY,
     CONF_QUERY_ID,
     CONF_SCAN_INTERVAL,
+    CONF_STATE_CLASS,
     CONF_TOKEN,
     CONF_UNIT,
     DEFAULT_SCAN_INTERVAL,
+    DEFAULT_STATE_CLASS,
     DOMAIN,
+    STATE_CLASS_NONE,
 )
 from .coordinator import PromQLCoordinator, _request_auth_kwargs
 
@@ -172,6 +175,9 @@ class PromQLOptionsFlow(OptionsFlow):
                     CONF_QUERY: query,
                     CONF_UNIT: user_input.get(CONF_UNIT, "").strip(),
                     CONF_DEVICE_CLASS: user_input.get(CONF_DEVICE_CLASS, ""),
+                    CONF_STATE_CLASS: user_input.get(
+                        CONF_STATE_CLASS, DEFAULT_STATE_CLASS
+                    ),
                 }
                 return self._save_queries([*self._queries, query_config])
 
@@ -185,6 +191,9 @@ class PromQLOptionsFlow(OptionsFlow):
                     vol.Optional(CONF_DEVICE_CLASS, default=""): vol.In(
                         _device_class_selector()
                     ),
+                    vol.Optional(
+                        CONF_STATE_CLASS, default=DEFAULT_STATE_CLASS
+                    ): vol.In(_state_class_selector()),
                 }
             ),
             errors=errors,
@@ -230,6 +239,9 @@ class PromQLOptionsFlow(OptionsFlow):
                     CONF_QUERY: query,
                     CONF_UNIT: user_input.get(CONF_UNIT, "").strip(),
                     CONF_DEVICE_CLASS: user_input.get(CONF_DEVICE_CLASS, ""),
+                    CONF_STATE_CLASS: user_input.get(
+                        CONF_STATE_CLASS, DEFAULT_STATE_CLASS
+                    ),
                 }
                 return self._save_queries(
                     [
@@ -253,6 +265,12 @@ class PromQLOptionsFlow(OptionsFlow):
                         CONF_DEVICE_CLASS,
                         default=query_config.get(CONF_DEVICE_CLASS, ""),
                     ): vol.In(_device_class_selector()),
+                    vol.Optional(
+                        CONF_STATE_CLASS,
+                        default=query_config.get(
+                            CONF_STATE_CLASS, DEFAULT_STATE_CLASS
+                        ),
+                    ): vol.In(_state_class_selector()),
                 }
             ),
             errors=errors,
@@ -317,6 +335,9 @@ def _queries_from_options(options: Mapping[str, Any]) -> list[QueryConfig]:
                     CONF_DEVICE_CLASS: item.get(CONF_DEVICE_CLASS, "")
                     if isinstance(item.get(CONF_DEVICE_CLASS), str)
                     else "",
+                    CONF_STATE_CLASS: item.get(CONF_STATE_CLASS, DEFAULT_STATE_CLASS)
+                    if isinstance(item.get(CONF_STATE_CLASS), str)
+                    else DEFAULT_STATE_CLASS,
                 }
             )
     return result
@@ -344,6 +365,14 @@ def _device_class_selector() -> dict[str, str]:
     return {"": "None"} | {
         device_class.value: device_class.value.replace("_", " ").title()
         for device_class in SensorDeviceClass
+    }
+
+
+def _state_class_selector() -> dict[str, str]:
+    """Return sensor state class values mapped to display labels."""
+    return {STATE_CLASS_NONE: "None"} | {
+        state_class.value: state_class.value.replace("_", " ").title()
+        for state_class in SensorStateClass
     }
 
 

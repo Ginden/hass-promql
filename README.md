@@ -30,7 +30,7 @@ Copy `custom_components/promql/` into your Home Assistant `custom_components/` d
 
 1. Go to **Settings → Devices & Services → Add Integration** and search for **PromQL**
 2. Enter the base URL of your Prometheus server (e.g. `http://prometheus:9090`)
-3. Add sensors by clicking **Add entry** on the integration card — each sensor takes a name, a PromQL expression, and an optional unit of measurement and device class
+3. Add sensors by clicking **Add entry** on the integration card — each sensor takes a name, a PromQL expression, and optional unit, device class, and state class metadata
 
 ![Add sensor dialog](docs/promql_integration_3.png)
 
@@ -53,6 +53,8 @@ A `promql.query` service is also registered, which runs an ad-hoc instant query 
 ## Query requirements
 
 Queries must return a **scalar** or a **single-element instant vector**. Multi-series results are not supported and will produce an unavailable sensor.
+
+New sensors default to the `measurement` state class so unitless counts and gauges are treated as numeric history by Home Assistant. Pick `none` to opt out of statistics, or use `total` / `total_increasing` for PromQL expressions that represent totals.
 
 Examples:
 

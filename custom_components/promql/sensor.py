@@ -22,8 +22,11 @@ from .const import (
     CONF_QUERIES,
     CONF_QUERY,
     CONF_QUERY_ID,
+    CONF_STATE_CLASS,
     CONF_UNIT,
+    DEFAULT_STATE_CLASS,
     DOMAIN,
+    STATE_CLASS_NONE,
 )
 from .coordinator import PromQLCoordinator
 
@@ -58,7 +61,9 @@ class PromQLSensor(CoordinatorEntity[PromQLCoordinator], SensorEntity):
         )
         self._attr_device_class = device_class
         self._attr_icon = _icon_for_config(device_class)
-        self._attr_state_class = SensorStateClass.MEASUREMENT if unit else None
+        self._attr_state_class = _state_class_from_config(
+            query_config.get(CONF_STATE_CLASS, DEFAULT_STATE_CLASS)
+        )
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, coordinator.config_entry_id)},
             name=coordinator.prometheus_url,
@@ -66,7 +71,7 @@ class PromQLSensor(CoordinatorEntity[PromQLCoordinator], SensorEntity):
         )
 
     @property
-    def native_value(self) -> float | str | None:
+    def native_value(self) -> float | None:
         if self.coordinator.data is None:
             return None
         raw = self.coordinator.data.get(self._query_id)
@@ -74,8 +79,8 @@ class PromQLSensor(CoordinatorEntity[PromQLCoordinator], SensorEntity):
             return None
         try:
             return float(raw)
-        except ValueError, TypeError:
-            return raw
+        except (ValueError, TypeError):
+            return None
 
 
 def _query_configs(options: Mapping[str, Any]) -> list[dict[str, str]]:
@@ -103,6 +108,9 @@ def _query_configs(options: Mapping[str, Any]) -> list[dict[str, str]]:
                     CONF_DEVICE_CLASS: item.get(CONF_DEVICE_CLASS, "")
                     if isinstance(item.get(CONF_DEVICE_CLASS), str)
                     else "",
+                    CONF_STATE_CLASS: item.get(CONF_STATE_CLASS, DEFAULT_STATE_CLASS)
+                    if isinstance(item.get(CONF_STATE_CLASS), str)
+                    else DEFAULT_STATE_CLASS,
                 }
             )
     return result
@@ -114,6 +122,16 @@ def _device_class_from_config(device_class: str) -> SensorDeviceClass | None:
         return None
     try:
         return SensorDeviceClass(device_class)
+    except ValueError:
+        return None
+
+
+def _state_class_from_config(state_class: str) -> SensorStateClass | None:
+    """Return a validated sensor state class from stored config."""
+    if state_class == STATE_CLASS_NONE:
+        return None
+    try:
+        return SensorStateClass(state_class)
     except ValueError:
         return None
 
