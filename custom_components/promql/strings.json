@@ -16,7 +16,8 @@
           "auth_type": "Pick None for an unauthenticated Prometheus, Basic for HTTP basic auth, or Bearer token if a proxy (oauth2-proxy, Grafana Cloud, kube-rbac-proxy) accepts an Authorization header",
           "username": "Username for HTTP basic authentication",
           "password": "Password for HTTP basic authentication",
-          "token": "Sent verbatim in the Authorization: Bearer header"
+          "token": "Sent verbatim in the Authorization: Bearer header",
+          "scan_interval": "How often to refresh sensors. Minimum 5 seconds; longer intervals reduce load on Prometheus."
         }
       },
       "reconfigure": {
@@ -34,7 +35,8 @@
           "auth_type": "Pick None for an unauthenticated Prometheus, Basic for HTTP basic auth, or Bearer token if a proxy (oauth2-proxy, Grafana Cloud, kube-rbac-proxy) accepts an Authorization header",
           "username": "Username for HTTP basic authentication",
           "password": "Password for HTTP basic authentication",
-          "token": "Sent verbatim in the Authorization: Bearer header"
+          "token": "Sent verbatim in the Authorization: Bearer header",
+          "scan_interval": "How often to refresh sensors. Minimum 5 seconds; longer intervals reduce load on Prometheus."
         }
       }
     },
@@ -45,8 +47,7 @@
     },
     "abort": {
       "already_configured": "This Prometheus instance is already configured.",
-      "reconfigure_successful": "Prometheus connection updated.",
-      "url_mismatch": "The new URL belongs to a different Prometheus instance."
+      "reconfigure_successful": "Prometheus connection updated."
     }
   },
   "options": {
@@ -57,7 +58,8 @@
           "edit_sensor": "Edit PromQL sensor",
           "delete_sensor": "Delete PromQL sensor",
           "test_query": "Test query"
-        }
+        },
+        "description": "Add, edit, or delete sensors for this Prometheus instance, or test an expression before saving it."
       },
       "add_sensor": {
         "title": "Add PromQL sensor",
@@ -69,9 +71,10 @@
           "state_class": "State class"
         },
         "data_description": {
-          "query": "A valid PromQL expression returning a scalar or single-element instant vector",
+          "query": "Return a scalar or exactly one time series. Use label filters or an aggregation such as sum() or avg() to reduce multiple series. Multiline expressions are supported.",
           "device_class": "Optional Home Assistant sensor device class used for unit conversion and statistics",
-          "state_class": "Controls how Home Assistant treats numeric history and long-term statistics"
+          "state_class": "Use Measurement for current values, Total for accumulated totals, Total increasing for counters that reset, or None to disable long-term statistics.",
+          "unit": "Optional display unit, for example %, W, or °C. Match the unit returned by the query and the selected device class."
         }
       },
       "edit_sensor": {
@@ -90,20 +93,22 @@
           "state_class": "State class"
         },
         "data_description": {
-          "query": "A valid PromQL expression returning a scalar or single-element instant vector",
+          "query": "Return a scalar or exactly one time series. Use label filters or an aggregation such as sum() or avg() to reduce multiple series. Multiline expressions are supported.",
           "device_class": "Optional Home Assistant sensor device class used for unit conversion and statistics",
-          "state_class": "Controls how Home Assistant treats numeric history and long-term statistics"
+          "state_class": "Use Measurement for current values, Total for accumulated totals, Total increasing for counters that reset, or None to disable long-term statistics.",
+          "unit": "Optional display unit, for example %, W, or °C. Match the unit returned by the query and the selected device class."
         }
       },
       "delete_sensor": {
         "title": "Delete PromQL sensor",
         "data": {
           "query_id": "Sensor"
-        }
+        },
+        "description": "Select the sensor to delete. Submitting removes its query from this Prometheus instance."
       },
       "test_query": {
         "title": "Test PromQL query",
-        "description": "Run a PromQL expression against the configured Prometheus instance. Last result: {result}",
+        "description": "Run an expression without saving a sensor.\n\n{result}",
         "data": {
           "query": "PromQL expression"
         },
@@ -113,7 +118,8 @@
       }
     },
     "error": {
-      "required": "This field is required."
+      "required": "This field is required.",
+      "entry_not_loaded": "This Prometheus instance is not loaded. Enable or reload the integration, then try again."
     },
     "abort": {
       "query_not_found": "The selected PromQL sensor no longer exists."
@@ -125,6 +131,14 @@
         "none": "None",
         "basic": "Basic auth",
         "bearer": "Bearer token"
+      }
+    },
+    "state_class": {
+      "options": {
+        "none": "None (no statistics)",
+        "measurement": "Measurement (current value)",
+        "total": "Total (accumulated value)",
+        "total_increasing": "Total increasing (counter with resets)"
       }
     }
   },

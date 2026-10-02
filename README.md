@@ -6,7 +6,10 @@ A Home Assistant custom component that lets you define [PromQL](https://promethe
 
 - Configure multiple Prometheus-compatible instances via the Home Assistant UI
 - Add any number of PromQL sensors per instance
-- Sensors update every 30 seconds
+- Configurable update interval (30 seconds by default, minimum 5 seconds)
+- Identical expressions share one request per refresh; disabled sensors are skipped after setup
+- At most four queries run concurrently per instance during polling
+- Unchanged results avoid unnecessary Home Assistant state updates
 - Installable via [HACS](https://hacs.xyz)
 
 ## Requirements
@@ -30,7 +33,8 @@ Copy `custom_components/promql/` into your Home Assistant `custom_components/` d
 
 1. Go to **Settings → Devices & Services → Add Integration** and search for **PromQL**
 2. Enter the base URL of your Prometheus server (e.g. `http://prometheus:9090`)
-3. Add sensors by clicking **Add entry** on the integration card — each sensor takes a name, a PromQL expression, and optional unit, device class, and state class metadata
+3. Open **Configure** on the PromQL instance and choose **Add PromQL sensor** — each sensor takes a name, a PromQL expression, and optional unit, device class, and state class metadata. Expressions can span multiple lines.
+4. Use **Test query** in the same menu to check an expression before saving it. Empty or multi-series results include guidance for producing a sensor value.
 
 ![Add sensor dialog](docs/promql_integration_3.png)
 
@@ -38,9 +42,9 @@ Multiple Prometheus-compatible instances can be configured side by side (e.g. Pr
 
 ![Multiple instances](docs/promql_integration_6.png)
 
-Each sensor is a subentry that can be edited, deleted, or test-queried from its row menu:
+Use **Configure → Edit PromQL sensor** or **Delete PromQL sensor** to manage existing sensors. Dropdowns distinguish sensors with the same name. Editing a sensor keeps its entity ID, and optional units or device classes can be cleared.
 
-![Subentry menu](docs/promql_integration_2.png)
+Use the instance menu's **Reconfigure** action to update its URL, credentials, or polling interval. Moving a server to a new URL preserves the existing sensors.
 
 Each sensor appears under a service-type device grouped per instance:
 
@@ -53,6 +57,8 @@ A `promql.query` service is also registered, which runs an ad-hoc instant query 
 ## Query requirements
 
 Queries must return a **scalar** or a **single-element instant vector**. Multi-series results are not supported and will produce an unavailable sensor.
+
+Empty results, failed requests, and non-finite values (`NaN`, `+Inf`, `-Inf`) also make only the affected sensors unavailable. They recover automatically when a subsequent query returns a finite number.
 
 New sensors default to the `measurement` state class so unitless counts and gauges are treated as numeric history by Home Assistant. Pick `none` to opt out of statistics, or use `total` / `total_increasing` for PromQL expressions that represent totals.
 
@@ -81,7 +87,7 @@ Starts Home Assistant, Prometheus, and node-exporter.
 On first run, complete the HA onboarding wizard in the browser (one-time).
 State persists in `dev/ha-config/` across restarts.
 
-**Adding a sensor:** Settings → Devices & Services → PromQL → Add entry.
+**Adding a sensor:** Settings → Devices & Services → PromQL → Configure → Add PromQL sensor.
 Enter `http://prometheus:9090` as the Prometheus URL — this is the Docker
 Compose service hostname, not `localhost` (which would resolve to the HA
 container itself). Example queries are in `dev/example-queries.txt`.

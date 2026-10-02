@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Mapping
 from typing import Any
 
@@ -10,6 +11,7 @@ import voluptuous as vol
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
 from homeassistant.config_entries import (
     ConfigEntry,
+    ConfigEntryState,
     ConfigFlow,
     ConfigFlowResult,
     OptionsFlow,
@@ -18,6 +20,10 @@ from homeassistant.const import CONF_NAME, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
+    SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
@@ -63,7 +69,7 @@ class PromQLConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            url = user_input[CONF_PROMETHEUS_URL].rstrip("/")
+            url = user_input[CONF_PROMETHEUS_URL].strip().rstrip("/")
             creds, errors = _validate_credentials(user_input)
             if not errors:
                 errors = await _validate_connection(self.hass, url, creds)
@@ -78,7 +84,9 @@ class PromQLConfigFlow(ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="user",
-            data_schema=_connection_schema(),
+            data_schema=self.add_suggested_values_to_schema(
+                _connection_schema(), user_input
+            ),
             errors=errors,
         )
 
@@ -90,23 +98,28 @@ class PromQLConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            url = user_input[CONF_PROMETHEUS_URL].rstrip("/")
+            url = user_input[CONF_PROMETHEUS_URL].strip().rstrip("/")
             creds, errors = _validate_credentials(user_input)
             if not errors:
                 errors = await _validate_connection(self.hass, url, creds)
 
             if not errors:
                 await self.async_set_unique_id(url)
-                self._abort_if_unique_id_mismatch(reason="url_mismatch")
+                if url != entry.unique_id:
+                    self._abort_if_unique_id_configured()
                 return self.async_update_reload_and_abort(
                     entry,
+                    unique_id=url,
                     title=url,
                     data=_build_entry_data(url, creds, user_input),
                 )
 
         return self.async_show_form(
             step_id="reconfigure",
-            data_schema=_connection_schema(defaults=entry.data),
+            data_schema=self.add_suggested_values_to_schema(
+                _connection_schema(),
+                user_input if user_input is not None else entry.data,
+            ),
             errors=errors,
         )
 
@@ -140,18 +153,29 @@ class PromQLOptionsFlow(OptionsFlow):
     ) -> ConfigFlowResult:
         """Run an arbitrary PromQL expression against the entry's Prometheus."""
         default_query = user_input[CONF_QUERY].strip() if user_input else "1"
-        placeholders = {"result": "—"}
+        placeholders = {"result": "No query run yet."}
+        errors: dict[str, str] = {}
 
-        if user_input is not None and default_query:
-            coordinator: PromQLCoordinator = self._config_entry.runtime_data
-            result = await coordinator.async_query(default_query)
-            placeholders["result"] = _format_query_result(result)
+        if user_input is not None:
+            if not default_query:
+                errors[CONF_QUERY] = "required"
+            elif self._config_entry.state is not ConfigEntryState.LOADED:
+                errors["base"] = "entry_not_loaded"
+            else:
+                coordinator: PromQLCoordinator = self._config_entry.runtime_data
+                result = await coordinator.async_query(default_query)
+                placeholders["result"] = _format_query_result(result)
 
         return self.async_show_form(
             step_id="test_query",
             data_schema=vol.Schema(
-                {vol.Required(CONF_QUERY, default=default_query): str}
+                {
+                    vol.Required(CONF_QUERY, default=default_query): TextSelector(
+                        TextSelectorConfig(multiline=True)
+                    )
+                }
             ),
+            errors=errors,
             description_placeholders=placeholders,
         )
 
@@ -183,18 +207,8 @@ class PromQLOptionsFlow(OptionsFlow):
 
         return self.async_show_form(
             step_id="add_sensor",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_NAME): str,
-                    vol.Required(CONF_QUERY): str,
-                    vol.Optional(CONF_UNIT, default=""): str,
-                    vol.Optional(CONF_DEVICE_CLASS, default=""): vol.In(
-                        _device_class_selector()
-                    ),
-                    vol.Optional(
-                        CONF_STATE_CLASS, default=DEFAULT_STATE_CLASS
-                    ): vol.In(_state_class_selector()),
-                }
+            data_schema=self.add_suggested_values_to_schema(
+                _sensor_schema(), user_input
             ),
             errors=errors,
         )
@@ -211,7 +225,9 @@ class PromQLOptionsFlow(OptionsFlow):
             step_id="edit_sensor",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_QUERY_ID): vol.In(_query_selector(self._queries)),
+                    vol.Required(CONF_QUERY_ID): _dropdown(
+                        _query_selector(self._queries)
+                    ),
                 }
             ),
         )
@@ -254,24 +270,9 @@ class PromQLOptionsFlow(OptionsFlow):
 
         return self.async_show_form(
             step_id="edit_sensor_details",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_NAME, default=query_config[CONF_NAME]): str,
-                    vol.Required(CONF_QUERY, default=query_config[CONF_QUERY]): str,
-                    vol.Optional(
-                        CONF_UNIT, default=query_config.get(CONF_UNIT, "")
-                    ): str,
-                    vol.Optional(
-                        CONF_DEVICE_CLASS,
-                        default=query_config.get(CONF_DEVICE_CLASS, ""),
-                    ): vol.In(_device_class_selector()),
-                    vol.Optional(
-                        CONF_STATE_CLASS,
-                        default=query_config.get(
-                            CONF_STATE_CLASS, DEFAULT_STATE_CLASS
-                        ),
-                    ): vol.In(_state_class_selector()),
-                }
+            data_schema=self.add_suggested_values_to_schema(
+                _sensor_schema(),
+                user_input if user_input is not None else query_config,
             ),
             errors=errors,
         )
@@ -294,7 +295,9 @@ class PromQLOptionsFlow(OptionsFlow):
             step_id="delete_sensor",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_QUERY_ID): vol.In(_query_selector(self._queries)),
+                    vol.Required(CONF_QUERY_ID): _dropdown(
+                        _query_selector(self._queries)
+                    ),
                 }
             ),
         )
@@ -357,7 +360,50 @@ def _new_query_id(name: str, queries: list[QueryConfig]) -> str:
 
 def _query_selector(queries: list[QueryConfig]) -> dict[str, str]:
     """Return query IDs mapped to display names for form selectors."""
-    return {query[CONF_QUERY_ID]: query[CONF_NAME] for query in queries}
+    name_counts = Counter(query[CONF_NAME] for query in queries)
+    return {
+        query[CONF_QUERY_ID]: (
+            f"{query[CONF_NAME]} ({query[CONF_QUERY_ID]})"
+            if name_counts[query[CONF_NAME]] > 1
+            else query[CONF_NAME]
+        )
+        for query in queries
+    }
+
+
+def _dropdown(options: dict[str, str]) -> SelectSelector:
+    """Use a searchable dropdown with readable, sorted labels."""
+    return SelectSelector(
+        SelectSelectorConfig(
+            options=[
+                SelectOptionDict(value=value, label=label)
+                for value, label in options.items()
+            ],
+            mode=SelectSelectorMode.DROPDOWN,
+            sort=True,
+        )
+    )
+
+
+def _sensor_schema() -> vol.Schema:
+    """Share form controls between creating and editing sensors."""
+    return vol.Schema(
+        {
+            vol.Required(CONF_NAME): str,
+            vol.Required(CONF_QUERY): TextSelector(TextSelectorConfig(multiline=True)),
+            vol.Optional(CONF_UNIT, default=""): str,
+            vol.Optional(CONF_DEVICE_CLASS, default=""): _dropdown(
+                _device_class_selector()
+            ),
+            vol.Optional(CONF_STATE_CLASS, default=DEFAULT_STATE_CLASS): SelectSelector(
+                SelectSelectorConfig(
+                    options=[STATE_CLASS_NONE, *SensorStateClass],
+                    translation_key=CONF_STATE_CLASS,
+                    mode=SelectSelectorMode.DROPDOWN,
+                )
+            ),
+        }
+    )
 
 
 def _device_class_selector() -> dict[str, str]:
@@ -365,14 +411,6 @@ def _device_class_selector() -> dict[str, str]:
     return {"": "None"} | {
         device_class.value: device_class.value.replace("_", " ").title()
         for device_class in SensorDeviceClass
-    }
-
-
-def _state_class_selector() -> dict[str, str]:
-    """Return sensor state class values mapped to display labels."""
-    return {STATE_CLASS_NONE: "None"} | {
-        state_class.value: state_class.value.replace("_", " ").title()
-        for state_class in SensorStateClass
     }
 
 
@@ -384,21 +422,17 @@ def _find_query(queries: list[QueryConfig], query_id: str | None) -> QueryConfig
     return None
 
 
-def _connection_schema(defaults: Mapping[str, Any] | None = None) -> vol.Schema:
+def _connection_schema() -> vol.Schema:
     """Return the schema for the URL/credentials/scan interval form."""
-    defaults = defaults or {}
-    password_input = TextSelector(
-        TextSelectorConfig(type=TextSelectorType.PASSWORD)
-    )
+    password_input = TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD))
     return vol.Schema(
         {
-            vol.Required(
-                CONF_PROMETHEUS_URL,
-                default=defaults.get(CONF_PROMETHEUS_URL, vol.UNDEFINED),
-            ): str,
+            vol.Required(CONF_PROMETHEUS_URL): TextSelector(
+                TextSelectorConfig(type=TextSelectorType.URL)
+            ),
             vol.Required(
                 CONF_AUTH_TYPE,
-                default=defaults.get(CONF_AUTH_TYPE, AUTH_TYPE_NONE),
+                default=AUTH_TYPE_NONE,
             ): SelectSelector(
                 SelectSelectorConfig(
                     options=list(AUTH_TYPES),
@@ -408,20 +442,27 @@ def _connection_schema(defaults: Mapping[str, Any] | None = None) -> vol.Schema:
             ),
             vol.Optional(
                 CONF_USERNAME,
-                default=defaults.get(CONF_USERNAME, ""),
+                default="",
             ): str,
             vol.Optional(
                 CONF_PASSWORD,
-                default=defaults.get(CONF_PASSWORD, ""),
+                default="",
             ): password_input,
             vol.Optional(
                 CONF_TOKEN,
-                default=defaults.get(CONF_TOKEN, ""),
+                default="",
             ): password_input,
             vol.Optional(
                 CONF_SCAN_INTERVAL,
-                default=defaults.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
-            ): vol.All(int, vol.Range(min=5)),
+                default=DEFAULT_SCAN_INTERVAL,
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=5,
+                    step=1,
+                    mode=NumberSelectorMode.BOX,
+                    unit_of_measurement="s",
+                )
+            ),
         }
     )
 
@@ -471,7 +512,12 @@ def _format_query_result(result: Mapping[str, Any]) -> str:
     if result.get("status") == "success":
         raw = result.get("raw_value")
         if raw is None:
-            return "OK (no scalar result — query returned multiple series or empty)"
+            return (
+                "No sensor value. Return a scalar or exactly one time series; "
+                "check the label filters or aggregate with sum() or avg()."
+            )
+        if result.get("value") is None:
+            return f"No finite numeric value ({raw}). The sensor will be unavailable."
         return f"OK: {raw}"
     return f"Error: {result.get('error') or 'unknown error'}"
 
@@ -494,6 +540,6 @@ async def _validate_connection(
             data = await resp.json()
             if data.get("status") != "success":
                 return {"base": "cannot_connect"}
-    except (TimeoutError, aiohttp.ClientError):
+    except TimeoutError, aiohttp.ClientError, ValueError:
         return {"base": "cannot_connect"}
     return {}

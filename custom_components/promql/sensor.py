@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from math import isfinite
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -50,7 +51,7 @@ class PromQLSensor(CoordinatorEntity[PromQLCoordinator], SensorEntity):
     def __init__(
         self, coordinator: PromQLCoordinator, query_config: dict[str, str]
     ) -> None:
-        super().__init__(coordinator)
+        super().__init__(coordinator, context=query_config[CONF_QUERY_ID])
         self._query_id = query_config[CONF_QUERY_ID]
         self._attr_unique_id = f"{coordinator.config_entry_id}_{self._query_id}"
         self._attr_name = query_config[CONF_NAME]
@@ -67,8 +68,14 @@ class PromQLSensor(CoordinatorEntity[PromQLCoordinator], SensorEntity):
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, coordinator.config_entry_id)},
             name=coordinator.prometheus_url,
+            configuration_url=coordinator.prometheus_url,
             entry_type=DeviceEntryType.SERVICE,
         )
+
+    @property
+    def available(self) -> bool:
+        """Only expose sensors with a usable value from the latest refresh."""
+        return super().available and self.native_value is not None
 
     @property
     def native_value(self) -> float | None:
@@ -78,9 +85,10 @@ class PromQLSensor(CoordinatorEntity[PromQLCoordinator], SensorEntity):
         if raw is None:
             return None
         try:
-            return float(raw)
-        except (ValueError, TypeError):
+            value = float(raw)
+        except ValueError, TypeError:
             return None
+        return value if isfinite(value) else None
 
 
 def _query_configs(options: Mapping[str, Any]) -> list[dict[str, str]]:

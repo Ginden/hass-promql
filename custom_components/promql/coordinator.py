@@ -6,6 +6,7 @@ import asyncio
 import logging
 from collections.abc import Mapping
 from datetime import timedelta
+from math import isfinite
 from typing import Any
 
 import aiohttp
@@ -33,6 +34,7 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 _QUERY_TIMEOUT = aiohttp.ClientTimeout(total=10)
+_MAX_CONCURRENT_QUERIES = 4
 
 type QueryResult = dict[str, Any]
 
@@ -49,6 +51,7 @@ class PromQLCoordinator(DataUpdateCoordinator[dict[str, str | None]]):
                 seconds=entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
             ),
             config_entry=entry,
+            always_update=False,
         )
         self.prometheus_url = entry.data[CONF_PROMETHEUS_URL].rstrip("/")
         self.config_entry_id = entry.entry_id
@@ -71,6 +74,8 @@ class PromQLCoordinator(DataUpdateCoordinator[dict[str, str | None]]):
                 return _success_result(raw)
         except (TimeoutError, aiohttp.ClientError) as err:
             return _error_result(str(err) or err.__class__.__name__)
+        except ValueError:
+            return _error_result("Prometheus returned invalid JSON")
 
     async def _async_update_data(self) -> dict[str, str | None]:
         assert self.config_entry is not None
@@ -78,23 +83,42 @@ class PromQLCoordinator(DataUpdateCoordinator[dict[str, str | None]]):
         if not isinstance(queries, list) or not queries:
             return {}
 
-        async def _fetch(query_config: dict[str, Any]) -> tuple[str, str | None]:
-            query_id: str = query_config[CONF_QUERY_ID]
-            result = await self.async_query(query_config[CONF_QUERY])
+        active_query_ids = set(self.async_contexts())
+        query_ids_by_expression: dict[str, list[str]] = {}
+        for query_config in queries:
+            if not _is_query_config(query_config):
+                continue
+            query_id = query_config[CONF_QUERY_ID]
+            if active_query_ids and query_id not in active_query_ids:
+                continue
+            query_ids_by_expression.setdefault(query_config[CONF_QUERY], []).append(
+                query_id
+            )
+
+        semaphore = asyncio.Semaphore(_MAX_CONCURRENT_QUERIES)
+
+        async def _fetch(
+            expression: str, query_ids: list[str]
+        ) -> dict[str, str | None]:
+            async with semaphore:
+                result = await self.async_query(expression)
             if result["status"] != "success":
                 _LOGGER.warning(
-                    "Prometheus query failed for %s: %s", query_id, result["error"]
+                    "Prometheus query failed for %s: %s",
+                    ", ".join(query_ids),
+                    result["error"],
                 )
-            return query_id, result["raw_value"]
+            return dict.fromkeys(query_ids, result["raw_value"])
 
-        pairs = await asyncio.gather(
+        results = await asyncio.gather(
             *(
-                _fetch(query_config)
-                for query_config in queries
-                if _is_query_config(query_config)
+                _fetch(expression, query_ids)
+                for expression, query_ids in query_ids_by_expression.items()
             )
         )
-        return dict(pairs)
+        return {
+            query_id: value for result in results for query_id, value in result.items()
+        }
 
 
 def _extract_scalar(payload: dict[str, Any]) -> str | None:
@@ -155,6 +179,8 @@ def _success_result(raw: str | None) -> QueryResult:
     try:
         value = float(raw) if raw is not None else None
     except ValueError:
+        value = None
+    if value is not None and not isfinite(value):
         value = None
     return {
         "status": "success",
