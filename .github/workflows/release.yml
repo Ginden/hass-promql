@@ -1,35 +1,125 @@
 name: Release
 
 on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "New version, e.g. 0.1.3 (optional v prefix)"
+        required: true
+        type: string
+      publish:
+        description: "Publish to HACS (otherwise only validate and build)"
+        type: boolean
+        default: false
   release:
     types: [published]
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
 jobs:
   publish-archive:
-    name: Publish HACS archive
+    name: Validate and publish HACS archive
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Set manifest version from tag
+      - name: Require main for a new release
+        if: github.event_name == 'workflow_dispatch'
         run: |
-          version="${{ github.event.release.tag_name }}"
-          version="${version#v}"
-          jq --arg v "$version" '.version = $v' \
-            custom_components/promql/manifest.json > manifest.tmp
-          mv manifest.tmp custom_components/promql/manifest.json
+          if [ "$GITHUB_REF" != refs/heads/main ]; then
+            echo "::error::Run the Release workflow from main."
+            exit 1
+          fi
 
-      - name: Build zip
-        working-directory: custom_components/promql
-        run: zip -r promql.zip .
-
-      - name: Upload archive to release
-        uses: svenstaro/upload-release-action@v2
+      - uses: actions/checkout@v4
         with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: custom_components/promql/promql.zip
-          asset_name: promql.zip
-          tag: ${{ github.ref }}
-          overwrite: true
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.14"
+      - name: Install dependencies
+        run: uv sync --frozen --group dev
+
+      - name: Prepare version and archive
+        id: prepare
+        env:
+          RELEASE_VERSION: ${{ inputs.version || github.event.release.tag_name }}
+        run: |
+          args=()
+          if [ "$GITHUB_EVENT_NAME" = release ]; then
+            args+=(--existing-release)
+          fi
+          uv run --no-sync python scripts/prepare_release.py \
+            "$RELEASE_VERSION" "${args[@]}" >> "$GITHUB_OUTPUT"
+
+      - name: Lint
+        run: uv run --no-sync ruff check custom_components/ scripts/ tests/
+      - name: Type-check
+        run: uv run --no-sync mypy custom_components/promql/ scripts/
+      - name: Run tests
+        run: uv run --no-sync pytest tests/ -v
+      - name: Hassfest validation
+        uses: home-assistant/actions/hassfest@master
+      - name: HACS validation
+        uses: hacs/action@main
+        with:
+          category: integration
+          comment: false
+
+      - name: Save validated archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: promql-${{ steps.prepare.outputs.version }}
+          path: dist/promql.zip
+          if-no-files-found: error
+
+      - name: Create version commit and tag
+        if: github.event_name == 'workflow_dispatch' && inputs.publish
+        env:
+          RELEASE_TAG: ${{ steps.prepare.outputs.tag }}
+        run: |
+          # The version commit belongs to the tag, keeping both main remotes aligned.
+          git checkout --detach
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add custom_components/promql/manifest.json
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: release $RELEASE_TAG"
+          fi
+          git tag "$RELEASE_TAG"
+          git push origin "refs/tags/$RELEASE_TAG"
+
+      - name: Publish release with archive
+        if: github.event_name == 'workflow_dispatch' && inputs.publish
+        env:
+          RELEASE_TAG: ${{ steps.prepare.outputs.tag }}
+        # Token-created releases do not trigger another release workflow.
+        # gh uploads the archive to a draft before publishing the release.
+        run: |
+          gh release create "$RELEASE_TAG" dist/promql.zip \
+            --verify-tag --title "$RELEASE_TAG" --generate-notes --latest
+
+      - name: Attach archive to an existing release
+        if: github.event_name == 'release'
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$RELEASE_TAG" dist/promql.zip --clobber
+
+      - name: Write run summary
+        env:
+          RELEASE_TAG: ${{ steps.prepare.outputs.tag }}
+          PUBLISH: ${{ inputs.publish }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = release ] || [ "$PUBLISH" = true ]; then
+            printf 'Published [%s](https://github.com/%s/releases/tag/%s) with `promql.zip`.\n' \
+              "$RELEASE_TAG" "$GH_REPO" "$RELEASE_TAG" >> "$GITHUB_STEP_SUMMARY"
+          else
+            printf 'Validated **%s**. Download the archive from this run, or rerun with **Publish to HACS** checked.\n' \
+              "$RELEASE_TAG" >> "$GITHUB_STEP_SUMMARY"
+          fi

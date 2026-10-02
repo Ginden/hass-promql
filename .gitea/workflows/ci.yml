@@ -20,9 +20,9 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen --group dev
       - name: Lint
-        run: uv run --no-sync ruff check custom_components/ tests/
+        run: uv run --no-sync ruff check custom_components/ scripts/ tests/
       - name: Type-check
-        run: uv run --no-sync mypy custom_components/promql/
+        run: uv run --no-sync mypy custom_components/promql/ scripts/
       - name: Run tests
         run: uv run --no-sync pytest tests/ -v
 

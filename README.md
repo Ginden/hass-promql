@@ -99,6 +99,20 @@ For a standalone self-contained image (no Prometheus bundled):
 docker run -p 8123:8123 $(docker build -q .)
 ```
 
+## Publishing a version
+
+1. Open [GitHub Actions → Release](https://github.com/Ginden/hass-promql/actions/workflows/release.yml).
+2. Click **Run workflow**, select **main**, and enter the new version, for example `0.1.3`.
+3. Check **Publish to HACS** and click **Run workflow**.
+
+The workflow validates the version, runs tests, linting, type checks, Hassfest, and HACS validation, then creates the version tag and publishes a GitHub release with generated notes and `promql.zip`. No local commands or extra secrets are needed.
+
+Leave **Publish to HACS** unchecked for a build-only run. The validated ZIP will be downloadable from the run's artifacts; no tag or release is created.
+
+Use a stable `major.minor.patch` version newer than existing release tags; a leading `v` is optional. The version bump is committed in the release tag's history so tagged source downloads match the HACS archive while GitHub and Gitea `main` remain aligned. Release tags live on GitHub.
+
+Publishing a release manually through GitHub's Releases page still triggers archive generation.
+
 ## Notes
 
 - `aiohttp` is bundled with Home Assistant — no additional Python dependencies are installed
