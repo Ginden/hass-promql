@@ -103,3 +103,5 @@ docker run -p 8123:8123 $(docker build -q .)
 
 - `aiohttp` is bundled with Home Assistant — no additional Python dependencies are installed
 - HACS distribution requires a public GitHub repository
+- Gitea CI uses `.gitea/workflows/ci.yml` for tests, linting, type checks, and Hassfest. External actions use explicit GitHub URLs because the Gitea instance resolves short action names to local repositories.
+- GitHub CI uses `.github/workflows/` for tests, Hassfest, HACS validation, and release archives. HACS validation and publishing run on GitHub, where the public distribution repository and its token are available.

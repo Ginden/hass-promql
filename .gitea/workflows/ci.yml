@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Tests and static checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: https://github.com/actions/checkout@v4
+      - uses: https://github.com/astral-sh/setup-uv@v5
+        with:
+          # Gitea's job token cannot authenticate to the GitHub releases API.
+          github-token: ""
+          python-version: "3.14"
+      - name: Install dependencies
+        run: uv sync --frozen --group dev
+      - name: Lint
+        run: uv run --no-sync ruff check custom_components/ tests/
+      - name: Type-check
+        run: uv run --no-sync mypy custom_components/promql/
+      - name: Run tests
+        run: uv run --no-sync pytest tests/ -v
+
+  hassfest:
+    name: Hassfest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: https://github.com/actions/checkout@v4
+      - name: Hassfest validation
+        # Let the runner mount the checkout into the validation container.
+        uses: docker://ghcr.io/home-assistant/hassfest
